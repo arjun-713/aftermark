@@ -8,6 +8,8 @@ The manifest includes the snapshot time, migration list, DB object checksum/size
 
 The archive copy ensures that a database pointer can recover even if the primary Supabase Storage service is lost. The DB dump alone cannot do that. Curated dataset bodies live in the database and are included in the dump. Authentication users/sessions in an externally managed Supabase Auth service are outside this PostgreSQL dump; Supabase project recovery/identity continuity must be verified in the full service recovery exercise.
 
+The backup service must receive its own `BACKUP_DATABASE_URL`, independent bucket/KMS settings and client encryption key, AWS identity, and primary Supabase URL/service-role key/archive bucket for reading the referenced objects. It does not receive the application/migration database credentials, session secret or Jev key. Render prompts for these values on the backup service itself; `sync:false` values in environment groups are ignored by Render. Creating the cron definition does not establish that these credentials are configured or that a verified backup exists.
+
 Keep `BACKUP_ENCRYPTION_KEY`, the HMAC journal key, KMS access, the original PostgreSQL roles/ownership, and the independent backup account recovery access outside the source database and primary hosting account. A successful backup report contains IDs, checksums and counts, not trace bodies or secrets. Configure an external alert when the newest verified snapshot is older than six hours. Seven-day retention is a recovery window, not an acceptable RPO.
 
 ## Isolated restore
@@ -28,11 +30,13 @@ Supply these server-side variables to `node dist/restore.mjs` or `tsx scripts/re
 | `DELETION_JOURNAL_BUCKET`, `DELETION_JOURNAL_HMAC_KEY` | Independent journal access/replay settings |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ARCHIVE_BUCKET` | Private archive target for surviving, non-deleted objects |
 
-Use TLS with certificate verification for remote PostgreSQL. The tools pass parsed libpq credentials in the child environment, excluding passwords from argv and shared logs. `pg_restore` requires an administrator; tenant replay uses the application role and explicitly verifies that it is not a superuser/BYPASSRLS role. Using an administrator for tenant replay could defeat its scoped queries and is refused.
+Use TLS with certificate verification for remote PostgreSQL. The runtime materializes Node's bundled public CA roots and points `PGSSLROOTCERT` at that bundle, so libpq has a trust source when the tools use `sslmode=verify-full`; the PostgreSQL base image does not supply this bundle by default. If the database provider requires its own CA, mount that public certificate at runtime and override `PGSSLROOTCERT`; do not disable verification. The tools pass parsed libpq credentials in the child environment, excluding passwords from argv and shared logs. `pg_restore` requires an administrator; tenant replay uses the application role and explicitly verifies that it is not a superuser/BYPASSRLS role. Using an administrator for tenant replay could defeat its scoped queries and is refused. Write the measured restore report under a writable runtime path such as `/tmp/restore-report.json`.
 
 The recovery order is checksum verification, authenticated decryption, restore into the empty DB, migration-manifest comparison, forced-RLS application-role check, independent journal replay, timed-detail expiry, expired pointer cleanup, and recovery of only the remaining live private objects. Existing objects are checksum-checked. Missing live archive pointers or pending cleanup fail recovery. Keep both old and restored services offline during recovery against the original storage bucket; replay intentionally removes erased objects.
 
 The report records measured DB/object restore duration and snapshot age and fails the corresponding 4h/6h targets when exceeded. It deliberately leaves `serviceRecoveryVerified:false`: an operator must run the service checks below and persist their report before supplying production acceptance evidence.
+
+The entrypoint enforces separate credential roles. Launch recovery with `SERVICE_ROLE=restore` and its target application/admin connections; a running API/worker refuses restore or migration credentials. The shared web image also checks that runtime `API_ORIGIN` matches its compiled rewrite. Rebuild for a different promoted API origin before enabling traffic; changing the runtime value alone is insufficient.
 
 ## Promotion rehearsal
 

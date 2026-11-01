@@ -1,5 +1,6 @@
-# REVIEW TEMPLATE. Applying this Blueprint creates billable resources; no deployment has been performed.
-# Migrate in a separately credentialed release job before promoting any of these services.
+# REVIEW TEMPLATE: applying this Blueprint creates billable resources. No deployment has been performed.
+# Secrets use service-level sync:false; Render ignores sync:false in environment groups.
+# Migrate with a separately credentialed release job. Jev credentials belong only to the worker.
 services:
   - type: web
     name: agent-quality-web
@@ -7,44 +8,134 @@ services:
     region: singapore
     plan: 0.5c-512mb
     numInstances: 1
-    autoDeployTrigger: 'off'
     healthCheckPath: /
+    autoDeployTrigger: 'off'
     envVars:
       - key: SERVICE_ROLE
-        value: web
-      - key: API_ORIGIN
-        sync: false
+        value: 'web'
       - key: PORT
         value: '10000'
+      - key: API_ORIGIN
+        sync: false
   - type: web
     name: agent-quality-api
     runtime: docker
     region: singapore
     plan: 0.5c-512mb
     numInstances: 2
-    autoDeployTrigger: 'off'
     healthCheckPath: /ready
     maxShutdownDelaySeconds: 60
+    autoDeployTrigger: 'off'
     envVars:
-      - fromGroup: agent-quality-server
       - key: SERVICE_ROLE
-        value: api
+        value: 'api'
+      - fromGroup: agent-quality-server-defaults
       - key: PORT
         value: '10000'
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: KMS_KEY_ID
+        sync: false
+      - key: DELETION_JOURNAL_HMAC_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: DELETION_JOURNAL_BUCKET
+        sync: false
+      - key: BACKUP_KMS_KEY_ID
+        sync: false
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_APP_SLUG
+        sync: false
+      - key: GITHUB_APP_PRIVATE_KEY
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: HUBSPOT_CLIENT_ID
+        sync: false
+      - key: HUBSPOT_CLIENT_SECRET
+        sync: false
+      - key: DODO_PAYMENTS_API_KEY
+        sync: false
+      - key: DODO_PAYMENTS_WEBHOOK_KEY
+        sync: false
+      - key: DODO_PAYMENTS_ENVIRONMENT
+        sync: false
+      - key: DODO_STARTER_PRODUCT_ID
+        sync: false
+      - key: DODO_TEAM_PRODUCT_ID
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
   - type: worker
     name: agent-quality-worker
     runtime: docker
     region: singapore
     plan: 0.5c-512mb
     numInstances: 1
-    autoDeployTrigger: 'off'
     maxShutdownDelaySeconds: 60
+    autoDeployTrigger: 'off'
     envVars:
-      - fromGroup: agent-quality-server
       - key: SERVICE_ROLE
-        value: worker
+        value: 'worker'
+      - fromGroup: agent-quality-server-defaults
       - key: PORT
         value: '10000'
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: KMS_KEY_ID
+        sync: false
+      - key: DELETION_JOURNAL_HMAC_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: SEMANTIC_EVALUATIONS_ENABLED
+        value: 'false'
+      - key: TYPESAFE_API_KEY
+        sync: false
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_APP_PRIVATE_KEY
+        sync: false
+      - key: HUBSPOT_CLIENT_ID
+        sync: false
+      - key: HUBSPOT_CLIENT_SECRET
+        sync: false
+      - key: DODO_PAYMENTS_API_KEY
+        sync: false
+      - key: DODO_PAYMENTS_WEBHOOK_KEY
+        sync: false
+      - key: DODO_PAYMENTS_ENVIRONMENT
+        sync: false
+      - key: DODO_STARTER_PRODUCT_ID
+        sync: false
+      - key: DODO_TEAM_PRODUCT_ID
+        sync: false
   - type: cron
     name: agent-quality-backup
     runtime: docker
@@ -53,18 +144,32 @@ services:
     schedule: '0 */6 * * *'
     autoDeployTrigger: 'off'
     envVars:
-      - fromGroup: agent-quality-backup
       - key: SERVICE_ROLE
-        value: backup
+        value: 'backup'
+      - fromGroup: agent-quality-backup-defaults
+      - key: BACKUP_DATABASE_URL
+        sync: false
+      - key: BACKUP_BUCKET
+        sync: false
+      - key: BACKUP_KMS_KEY_ID
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
 envVarGroups:
-  - name: agent-quality-server
+  - name: agent-quality-server-defaults
     envVars:
       - key: NODE_ENV
         value: production
       - key: AUTH_MODE
         value: supabase
-      - key: SEMANTIC_EVALUATIONS_ENABLED
-        value: 'false'
       - key: AWS_REGION
         value: ap-southeast-1
       - key: MONTHLY_BUDGET_USD
@@ -75,37 +180,15 @@ envVarGroups:
         value: 'false'
       - key: ARCHIVE_BUCKET
         value: agent-quality-private
-      - key: DATABASE_URL
-        sync: false
-      - key: WEB_ORIGIN
-        sync: false
-      - key: API_ORIGIN
-        sync: false
       - key: SESSION_SECRET
         generateValue: true
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: KMS_KEY_ID
-        sync: false
-      - key: DELETION_JOURNAL_BUCKET
-        sync: false
-      - key: DELETION_JOURNAL_HMAC_KEY
-        sync: false
-      - key: BACKUP_KMS_KEY_ID
-        sync: false
-  - name: agent-quality-backup
+  - name: agent-quality-backup-defaults
     envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AWS_REGION
+        value: ap-southeast-1
       - key: BACKUP_REGION
         value: ap-southeast-1
-      - key: BACKUP_DATABASE_URL
-        sync: false
-      - key: BACKUP_BUCKET
-        sync: false
-      - key: BACKUP_KMS_KEY_ID
-        sync: false
-      - key: BACKUP_ENCRYPTION_KEY
-        sync: false
+      - key: ARCHIVE_BUCKET
+        value: agent-quality-private
