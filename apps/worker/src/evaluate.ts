@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { tenant,rows,sql,pool } from '@agent-quality/db';
-import { limits,type Evidence,type Assessment } from '@agent-quality/contracts';
-import { assess,type FrozenRun,type SemanticResult } from '../../../packages/evaluation/src/index.ts';
+import { limits,type Evidence,type Assessment } from '../../../packages/contracts/src/index.ts';
+import { assess,expectedOutcomes,type FrozenRun,type SemanticResult } from '../../../packages/evaluation/src/index.ts';
+import { snapshotVerificationBindings } from '../../../packages/evaluation/src/identity.ts';
 import { requestJev,validateJevResponse,ProviderError } from '../../../packages/evaluation/src/jev.ts';
 import type { RunJob } from '../../../packages/db/src/queue.ts';
 import { detectorHash } from '../../../packages/evaluation/src/calibration.ts';
@@ -18,28 +19,30 @@ export async function evaluateJob(job:RunJob,hooks:EvaluationHooks={}) {
 async function evaluateInternal(job:RunJob,hooks:EvaluationHooks={}) {
   const prepared=await tenant(job.organizationId,null,async tx=>{
     const [run]=await rows<any>(tx,sql`select * from runs where project_id=${job.projectId} and id=${job.runId} for update`);
-    if(!run || run.expired_at || run.revision!==job.revision || !job.explicit && run.auto_evaluations>limits.automaticReevaluations)return null;
+    if(!run || run.expired_at || job.instanceId && run.instance_id!==job.instanceId || run.revision!==job.revision || !job.explicit && run.auto_evaluations>limits.automaticReevaluations)return null;
     const [project]=await rows<any>(tx,sql`select active_policy_id from projects where id=${job.projectId}`);
     const policyId=job.policyId??project.active_policy_id;
     const [policy]=await rows<any>(tx,sql`select * from policies where project_id=${job.projectId} and id=${policyId}`);if(!policy)return null;
     const [existing]=await rows<any>(tx,sql`select * from evaluations where project_id=${job.projectId} and run_id=${job.runId} and revision=${job.revision} and policy_id=${policyId} for update`);
     if(existing?.completed_at)return null;
-    if(existing)return {evaluation:existing,input:existing.frozen_input as FrozenRun};
+    if(existing)return {evaluation:existing,input:existing.frozen_input as FrozenRun,runInstanceId:run.instance_id};
     const events=(await rows<any>(tx,sql`select event from events where project_id=${job.projectId} and run_id=${job.runId} order by event->>'timestamp',event_id`)).map(x=>x.event);
     const evidence=(await rows<any>(tx,sql`select id,body from evidence where project_id=${job.projectId} and run_id=${job.runId}`)).map(x=>({...x.body,id:x.id}));
     const reports=policy.definition.calibrationReportId?await rows<any>(tx,sql`select passed,detector_hash from calibration_reports where project_id=${job.projectId} and id=${policy.definition.calibrationReportId}`):[];
-    const input:FrozenRun={id:run.id,revision:run.revision,executionStatus:run.execution_status,startedAt:new Date(run.started_at).toISOString(),completedAt:run.completed_at?new Date(run.completed_at).toISOString():null,events,evidence,policy:policy.definition,calibrationApproved:Boolean(reports[0]?.passed && reports[0].detector_hash===detectorHash(policy.definition))};
+    const input:FrozenRun={id:run.id,runInstanceId:run.instance_id,revision:run.revision,executionStatus:run.execution_status,startedAt:new Date(run.started_at).toISOString(),completedAt:run.completed_at?new Date(run.completed_at).toISOString():null,events,evidence,policy:policy.definition,calibrationApproved:Boolean(reports[0]?.passed && reports[0].detector_hash===detectorHash(policy.definition))};
+    const connections=await rows<any>(tx,sql`select id,provider,verification_version from connections where project_id=${job.projectId} for share`);
+    input.verificationBindings=snapshotVerificationBindings(expectedOutcomes(input),connections);
     const id=randomUUID();
     const [evaluation]=await rows<any>(tx,sql`insert into evaluations(organization_id,project_id,id,run_id,revision,policy_id,policy_hash,processing,frozen_input) values(${job.organizationId},${job.projectId},${id},${job.runId},${job.revision},${policy.id},${policy.hash},'processing',${JSON.stringify(input)}::jsonb) returning *`);
     if(!job.explicit)await tx.execute(sql`update runs set auto_evaluations=auto_evaluations+1 where project_id=${job.projectId} and id=${job.runId}`);
-    return {evaluation,input};
+    return {evaluation,input,runInstanceId:run.instance_id};
   });
   if(!prepared)return {status:'superseded_or_complete'};
   const {evaluation}=prepared;let input=prepared.input;
   let providerResponse=evaluation.provider_response,semanticError:string|undefined;
   // Freeze provider observations once. Retries with a stored observation never repeat a provider query.
   if(hooks.collectEvidence && !evaluation.frozen_input.observationsCollected){
-    const observations=await hooks.collectEvidence(input,job);
+    const observations=await hooks.collectEvidence(input,{...job,instanceId:prepared.runInstanceId});
     input={...input,evidence:[...input.evidence,...observations]};
     await tenant(job.organizationId,null,async tx=>{
       for(const observation of observations)await tx.execute(sql`insert into evidence(organization_id,project_id,id,run_id,body) values(${job.organizationId},${job.projectId},${observation.id},${job.runId},${JSON.stringify(observation)}::jsonb) on conflict do nothing`);
@@ -75,7 +78,7 @@ async function evaluateInternal(job:RunJob,hooks:EvaluationHooks={}) {
   await tenant(job.organizationId,null,async tx=>{
     await tx.execute(sql`update evaluations set processing=${assessment.processing},assessment=${JSON.stringify(assessment)}::jsonb,completed_at=now() where project_id=${job.projectId} and id=${evaluation.id}`);
     if(reservation && (!input.policy.semanticEnabled || !input.policy.checks.length || semantic))await tx.execute(sql`update usage_ledger set state='consumed',tokens=${assessment.usage} where project_id=${job.projectId} and evaluation_id=${evaluation.id}`);
-    await tx.execute(sql`update runs set latest_evaluation_id=${evaluation.id} where project_id=${job.projectId} and id=${job.runId} and revision=${job.revision}`);
+    await tx.execute(sql`update runs set latest_evaluation_id=${evaluation.id} where project_id=${job.projectId} and id=${job.runId} and instance_id=${prepared.runInstanceId} and revision=${job.revision}`);
     if(assessment.decision!=='pass')await tx.execute(sql`insert into reviews(organization_id,project_id,evaluation_id,run_id) values(${job.organizationId},${job.projectId},${evaluation.id},${job.runId}) on conflict do nothing`);
   });
   return {status:assessment.processing,evaluationId:evaluation.id,assessment};

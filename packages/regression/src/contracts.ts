@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eventSchema, id, outcomeSchema, policySchema } from '../../contracts/src/index.ts';
+import { eventSchema, id, outcomeSchema, policySchema, evidenceSchema, verificationBindingSchema } from '../../contracts/src/index.ts';
 import type { Assessment } from '../../contracts/src/index.ts';
 import type { FrozenRun } from '../../evaluation/src/index.ts';
 
@@ -21,16 +21,12 @@ export const expectedBehaviorSchema = z.object({
 });
 export type ExpectedBehavior = z.infer<typeof expectedBehaviorSchema>;
 
-const evidenceSchema = z.object({
-  id: z.string(), outcomeId: z.string(), source: z.enum(['provider_observation', 'customer_verifier', 'reported_tool_result']),
-  provider: z.string(), observedAt: z.string().datetime({ offset: true }), resourceId: z.string(),
-  properties: z.record(z.string(), z.unknown()), status: z.enum(['observed', 'unavailable']), reason: z.string().optional(),
-});
 export const frozenRunSchema = z.object({
-  id, revision: z.number().int().positive(), executionStatus: z.enum(['running', 'completed', 'failed', 'cancelled', 'abandoned']),
+  id, runInstanceId: z.uuid().optional(), revision: z.number().int().positive(), executionStatus: z.enum(['running', 'completed', 'failed', 'cancelled', 'abandoned']),
   startedAt: z.string().datetime({ offset: true }), completedAt: z.string().datetime({ offset: true }).nullable(),
   events: z.array(eventSchema).max(10000), evidence: z.array(evidenceSchema).max(10000), policy: policySchema,
   calibrationApproved: z.boolean().optional(), observationsCollected: z.boolean().optional(),
+  verificationBindings: z.record(z.string(), verificationBindingSchema.nullable()).optional(),
 }).passthrough();
 const sourceSchema = z.object({
   reviewId: z.uuid(), reviewDecisionId: z.uuid(), evaluationId: z.uuid(), runId: id, revision: z.number().int().positive(),
@@ -70,19 +66,19 @@ export const experimentSchema = z.object({
   allowRequiredUnknown: z.boolean().default(false), evaluateMissing: z.boolean().default(true),
 }).strict();
 export type CandidateSpec = z.infer<typeof candidateSchema>;
-export type PinnedCandidate = { name: string; runs: { caseId: string; runId: string; revision: number; evaluationId?: string }[] };
+export type PinnedCandidate = { name: string; runs: { caseId: string; runId: string; runInstanceId?: string; revision: number; evaluationId?: string }[] };
 export type SemanticGate = z.infer<typeof semanticGateSchema>;
 export type ExperimentSnapshot = {
   schemaVersion: '1.0'; datasetHash: string; policyHash: string; semanticGate: SemanticGate;
   allowRequiredUnknown: boolean; candidates: PinnedCandidate[];
 };
 export type EvaluationSnapshot = {
-  id: string; runId: string; revision: number; policyId: string; policyHash: string; processing: string;
+  id: string; runId: string; runInstanceId?: string; revision: number; policyId: string; policyHash: string; processing: string;
   frozenInput: FrozenRun | null; providerResponse: unknown; completedAt: string | null;
 };
 export type AssertionResult = { code: string; status: 'pass' | 'fail' | 'unknown' | 'allowed'; message: string };
 export type CaseReport = {
-  caseId: string; runId: string; revision: number; evaluationId: string | null; expectedBehavior: ExpectedBehavior;
+  caseId: string; runId: string; runInstanceId: string | null; revision: number; evaluationId: string | null; expectedBehavior: ExpectedBehavior;
   executionStatus: string | null; qualityDecision: Assessment['decision'] | null;
   verification: 'verified' | 'contradicted' | 'unknown' | 'not_required'; status: ReportStatus;
   requiredUnknown: number; semanticReviewOnly: number; assertions: AssertionResult[];

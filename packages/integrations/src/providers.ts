@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { createAppAuth } from '@octokit/auth-app';
 import { z } from 'zod';
-import { type Outcome,type Evidence } from '@agent-quality/contracts';
+import { type Outcome,type Evidence,type ConnectionBinding } from '../../contracts/src/index.ts';
 import { redact } from '../../contracts/src/redaction.ts';
 import { readPath,expectedOutcomes,type FrozenRun } from '../../evaluation/src/index.ts';
+import { connectionBinding,resourceIdentity } from '../../evaluation/src/identity.ts';
 import { tenant,rows,sql } from '@agent-quality/db';
 import { encrypt,decrypt,type Envelope } from './encryption.ts';
 import type { RunJob } from '../../db/src/queue.ts';
@@ -31,14 +32,18 @@ export async function connectionToken(connection:any,job:Pick<RunJob,'organizati
   if(credential.expiresAt>Date.now()+60000)return credential.access_token;
   // Serialize refreshes across workers and projects sharing the same connection record.
   return tenant(job.organizationId,null,async tx=>{
-    const [fresh]=await rows<any>(tx,sql`select credential from connections where project_id=${job.projectId} and id=${connection.id} for update`);
+    const [fresh]=await rows<any>(tx,sql`select credential,verification_version from connections where project_id=${job.projectId} and id=${connection.id} for update`);
+    if(!fresh || fresh.verification_version!==connection.verification_version)throw new Error('The provider connection changed after this evaluation was frozen');
     const current=await decrypt<HubspotCredential>(fresh.credential,context);if(current.expiresAt>Date.now()+60000)return current.access_token;
     const token=await exchangeHubspot({grant_type:'refresh_token',refresh_token:current.refresh_token});
+    if(current.hub_id!==undefined && token.hub_id!==undefined && current.hub_id!==token.hub_id)throw new Error('Provider token refresh changed account identity');
     const envelope=await encrypt(token,context);await tx.execute(sql`update connections set credential=${JSON.stringify(envelope)}::jsonb,status='connected' where project_id=${job.projectId} and id=${connection.id}`);return token.access_token;
   });
 }
-export async function observe(outcome:Outcome,token:string,transport:typeof fetch=fetch):Promise<Evidence>{
-  const base:Evidence={id:randomUUID(),outcomeId:outcome.id,source:'provider_observation',provider:outcome.source,observedAt:new Date().toISOString(),resourceId:outcome.resource.id??'',status:'unavailable',properties:{}};
+export async function observe(outcome:Outcome,token:string,transport:typeof fetch=fetch,binding?:ConnectionBinding):Promise<Evidence>{
+  const identity=resourceIdentity(outcome);
+  const base:Evidence={id:randomUUID(),outcomeId:outcome.id,source:'provider_observation',provider:outcome.source,observedAt:new Date().toISOString(),resourceId:outcome.resource.id??'',status:'unavailable',properties:{},resourceIdentity:identity,connectionBinding:binding};
+  if(!identity || !binding)return {...base,reason:'A frozen resource and provider connection binding are required.'};
   try{
     let url:string;
     if(outcome.source==='github'){
@@ -71,11 +76,15 @@ export async function collectEvidence(input:FrozenRun,job:RunJob):Promise<Eviden
   const result:Evidence[]=[];
   for(let i=0;i<outcomes.length;i+=3){
     const observations=await Promise.all(outcomes.slice(i,i+3).map(async outcome=>{
-      const unavailable=(reason:string):Evidence=>({id:randomUUID(),outcomeId:outcome.id,source:'provider_observation',provider:outcome.source,observedAt:new Date().toISOString(),resourceId:outcome.resource.id??'',status:'unavailable',properties:{},reason});
+      const expected=input.verificationBindings?.[outcome.id];
+      const unavailable=(reason:string):Evidence=>({id:randomUUID(),outcomeId:outcome.id,source:'provider_observation',provider:outcome.source,observedAt:new Date().toISOString(),resourceId:outcome.resource.id??'',status:'unavailable',properties:{},reason,resourceIdentity:expected?.resourceIdentity,connectionBinding:expected?.connectionBinding});
       if(outcomes.length>12)return unavailable('The run exceeds the standard verification budget. Explicit larger analysis is required.');
-      const connection=connections.find(c=>c.provider===outcome.source);if(!connection)return unavailable('The read-only provider connection is disconnected.');
-      try{if(!tokens.has(connection.id))tokens.set(connection.id,connectionToken(connection,job));const token=await tokens.get(connection.id)!;const observation=await observe(outcome,token);await tenant(job.organizationId,null,tx=>tx.execute(sql`update connections set last_checked_at=now(),status=${observation.status==='observed'?'connected':'degraded'} where project_id=${job.projectId} and id=${connection.id}`));return observation;}
-      catch{await tenant(job.organizationId,null,tx=>tx.execute(sql`update connections set status='disconnected',last_checked_at=now() where project_id=${job.projectId} and id=${connection.id}`));return unavailable('Provider credentials are expired or unavailable.');}
+      if(!expected)return unavailable('This frozen evaluation has no current provider connection binding.');
+      const connection=connections.find(c=>c.provider===outcome.source && c.id===expected.connectionBinding.connectionId && c.verification_version===expected.connectionBinding.verificationVersion);
+      if(!connection)return unavailable('The frozen provider connection is disconnected or was reauthorized.');
+      const binding=connectionBinding(connection)!;
+      try{if(!tokens.has(connection.id))tokens.set(connection.id,connectionToken(connection,job));const token=await tokens.get(connection.id)!;const observation=await observe(outcome,token,fetch,binding);await tenant(job.organizationId,null,tx=>tx.execute(sql`update connections set last_checked_at=now(),status=${observation.status==='observed'?'connected':'degraded'} where project_id=${job.projectId} and id=${connection.id} and verification_version=${binding.verificationVersion}`));return observation;}
+      catch{await tenant(job.organizationId,null,tx=>tx.execute(sql`update connections set status='disconnected',last_checked_at=now() where project_id=${job.projectId} and id=${connection.id} and verification_version=${binding.verificationVersion}`));return unavailable('Provider credentials are expired or unavailable.');}
     }));result.push(...observations);
   }
   return result;

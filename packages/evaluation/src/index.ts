@@ -1,24 +1,30 @@
 import { createHash } from 'node:crypto';
-import { type AgentEvent,type Outcome,type Evidence,type Assessment,type Policy,type Finding } from '@agent-quality/contracts';
+import { type AgentEvent,type Outcome,type Evidence,type Assessment,type Policy,type Finding,type VerificationBinding } from '../../contracts/src/index.ts';
 import { canonical } from '../../contracts/src/redaction.ts';
-export type FrozenRun={id:string;revision:number;executionStatus:string;startedAt:string;completedAt:string|null;events:AgentEvent[];evidence:Evidence[];policy:Policy;calibrationApproved?:boolean};
+import { matchesProviderEvidence } from './identity.ts';
+export type FrozenRun={id:string;runInstanceId?:string;revision:number;executionStatus:string;startedAt:string;completedAt:string|null;events:AgentEvent[];evidence:Evidence[];policy:Policy;calibrationApproved?:boolean;verificationBindings?:Record<string,VerificationBinding|null>};
 export type SemanticResult={model:string;usage:number;probabilities:Record<string,number>};
 export function readPath(value:unknown,path:string):unknown {
   if(!path.split('.').some(key=>['__proto__','constructor','prototype'].includes(key)) && value && typeof value==='object' && Object.hasOwn(value,path))return (value as Record<string,unknown>)[path];
   for(const key of path.split('.')){if(['__proto__','constructor','prototype'].includes(key) || !value || typeof value!=='object' || !Object.hasOwn(value,key))return undefined;value=(value as Record<string,unknown>)[key];}return value;
 }
 const redacted=(v:unknown)=>v===undefined || /\[(REDACTED|TRUNCATED)/.test(JSON.stringify(v)??'');
-export function expectedOutcomes(input:FrozenRun):Outcome[] {
+function resolveOutcomes(input:FrozenRun):{outcomes:Outcome[];conflicts:string[]} {
   const result=new Map<string,Outcome>();
+  const conflicts=new Set<string>();const mapped=new Map<string,string>();
   for(const e of input.events)if(e.kind==='outcome.expected' && e.payload.outcome)result.set(e.payload.outcome.id,e.payload.outcome);
   for(const mapping of input.policy.toolMappings){
-    if(!input.events.some(e=>e.kind==='tool.called' && e.payload.tool===mapping.tool))continue;
-    const outcome=structuredClone(result.get(mapping.outcome.id)??mapping.outcome);
+    if(!result.has(mapping.outcome.id) && !input.events.some(e=>e.kind==='tool.called' && e.payload.tool===mapping.tool))continue;
+    const traced=result.get(mapping.outcome.id);const outcome=structuredClone(mapping.outcome);
     if(!outcome.resource.id && outcome.resource.toolResultField){const last=input.events.filter(e=>e.kind==='tool.result' && e.payload.tool===mapping.tool && e.payload.success).at(-1);const id=readPath(last?.payload.result,outcome.resource.toolResultField);if(typeof id==='number' || typeof id==='string')outcome.resource.id=String(id);}
+    const contract=(value:Outcome)=>canonical({operation:value.operation,source:value.source,required:value.required,assertions:value.assertions,observationWindowSeconds:value.observationWindowSeconds,repository:value.resource.repository?.toLowerCase()});
+    if(traced && (contract(traced)!==contract(outcome) || traced.resource.toolResultField && traced.resource.toolResultField!==outcome.resource.toolResultField || traced.resource.id && traced.resource.id!==outcome.resource.id))conflicts.add(outcome.id);
+    const previous=mapped.get(outcome.id);if(previous && previous!==canonical(outcome))conflicts.add(outcome.id);mapped.set(outcome.id,canonical(outcome));
     result.set(outcome.id,outcome);
   }
-  return [...result.values()];
+  return {outcomes:[...result.values()],conflicts:[...conflicts]};
 }
+export function expectedOutcomes(input:FrozenRun):Outcome[] {return resolveOutcomes(input).outcomes;}
 export function assess(input:FrozenRun,semantic?:SemanticResult,semanticError?:string):Assessment {
   const findings:Finding[]=[],limitations:string[]=[];
   const add=(code:string,summary:string,options:Partial<Finding>={})=>findings.push({id:createHash('sha256').update(canonical({code,summary,...options})).digest('hex').slice(0,24),code,summary,severity:'medium',evidenceIds:[],blocking:false,...options});
@@ -33,14 +39,15 @@ export function assess(input:FrozenRun,semantic?:SemanticResult,semanticError?:s
   const calls=events.filter(e=>e.kind==='tool.called');const results=events.filter(e=>e.kind==='tool.result');
   if(calls.some(c=>!results.some(r=>r.payload.toolCallId===c.payload.toolCallId)))limitations.push('A tool call has no recorded result.');
   if(results.some(r=>!calls.some(c=>r.payload.toolCallId===c.payload.toolCallId)))limitations.push('A tool result has no recorded call.');
-  const expectations=expectedOutcomes({...input,events});
+  const resolved=resolveOutcomes({...input,events});const expectations=resolved.outcomes;
+  for(const id of resolved.conflicts)limitations.push(`Outcome ${id} conflicts with its immutable policy mapping.`);
   if(!expectations.length)limitations.push('No explicit expected outcomes are configured. Verified completion is unavailable.');
   const duplicateOutcomes=new Map<string,string>();
   for(const e of events)if(e.payload.outcome){const old=duplicateOutcomes.get(e.payload.outcome.id);const next=canonical(e.payload.outcome);if(old && old!==next)limitations.push(`Outcome ${e.payload.outcome.id} has conflicting definitions.`);duplicateOutcomes.set(e.payload.outcome.id,next);}
   const outcomes:Assessment['outcomes']=expectations.map(outcome=>{
     const base={id:outcome.id,name:outcome.name,required:outcome.required};
     if(!outcome.resource.id || redacted(outcome.resource.id))return {...base,verification:'unknown',evidenceIds:[],reason:'The expected resource identifier is unavailable.'};
-    const observations=input.evidence.filter(e=>e.outcomeId===outcome.id && e.resourceId===outcome.resource.id && (e.source==='customer_verifier' && outcome.source==='customer_verifier' || e.source==='provider_observation' && e.provider===outcome.source)).sort((a,b)=>Date.parse(b.observedAt)-Date.parse(a.observedAt));
+    const observations=input.evidence.filter(e=>e.outcomeId===outcome.id && e.resourceId===outcome.resource.id && (e.source==='customer_verifier' && outcome.source==='customer_verifier' || e.source==='provider_observation' && e.provider===outcome.source && matchesProviderEvidence(outcome,e,input.verificationBindings?.[outcome.id]))).sort((a,b)=>Date.parse(b.observedAt)-Date.parse(a.observedAt));
     const completed=input.completedAt?Date.parse(input.completedAt):NaN;
     const applicable=observations.filter(e=>Number.isFinite(completed) && Date.parse(e.observedAt)>=completed && Date.parse(e.observedAt)-completed<=outcome.observationWindowSeconds*1000);
     const evidence=applicable.find(e=>e.status==='observed');
@@ -77,5 +84,5 @@ export function assess(input:FrozenRun,semantic?:SemanticResult,semanticError?:s
   const required=outcomes.filter(o=>o.required);
   const verifiedCompletion=input.executionStatus==='completed' && required.length>0 && required.every(o=>o.verification==='verified') && !limitations.length;
   const decision=findings.some(f=>f.blocking)?'fail':limitations.length || required.some(o=>o.verification==='unknown')?'unknown':findings.length?'review':verifiedCompletion?'pass':'unknown';
-  return {rulesVersion:'outcome-rules-1',processing:limitations.length?'partial':'completed',decision,outcomes,findings,limitations:[...new Set(limitations)],verifiedCompletion,model:semantic?.model??null,usage:semantic?.usage??0};
+  return {rulesVersion:'outcome-rules-2',processing:limitations.length?'partial':'completed',decision,outcomes,findings,limitations:[...new Set(limitations)],verifiedCompletion,model:semantic?.model??null,usage:semantic?.usage??0};
 }

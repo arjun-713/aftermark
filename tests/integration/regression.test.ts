@@ -12,6 +12,7 @@ import { assess, type FrozenRun } from '../../packages/evaluation/src/index.ts';
 import { stopQueue } from '../../packages/db/src/queue.ts';
 import type { Dataset } from '../../packages/regression/src/index.ts';
 import { runCli } from '../../packages/cli/src/cli.ts';
+import { bindProviderFixture } from '../fixtures/provider-connection.ts';
 
 const org = '10000000-0000-4000-8000-000000000001', project = '20000000-0000-4000-8000-000000000001', user = '00000000-0000-4000-8000-000000000001';
 const app = await buildServer(); if(!app.hasRoute({method:'GET',url:'/v1/datasets'}))await regressionRoutes(app);
@@ -27,7 +28,8 @@ function trace(runId: string, environment: 'test' | 'production' | 'staging' = '
 async function reviewed(environment: 'test' | 'production' = 'test') {
   const runId = `source-${randomUUID()}`, evaluationId = randomUUID(), reviewId = randomUUID(); const input = trace(runId, environment);
   await tenant(org, user, async tx => {
-    await tx.execute(sql`insert into runs(organization_id,project_id,id,agent_version,environment,execution_status,started_at,completed_at,last_event_at) values(${org},${project},${runId},'v1',${environment},'completed',${input.startedAt},${input.completedAt},now())`);
+    await bindProviderFixture(tx,org,project,input);
+    const [run]=await rows<any>(tx,sql`insert into runs(organization_id,project_id,id,agent_version,environment,execution_status,started_at,completed_at,last_event_at) values(${org},${project},${runId},'v1',${environment},'completed',${input.startedAt},${input.completedAt},now()) returning instance_id`);input.runInstanceId=run.instance_id;
     await tx.execute(sql`insert into evaluations(organization_id,project_id,id,run_id,revision,policy_id,policy_hash,processing,frozen_input,assessment,completed_at) values(${org},${project},${evaluationId},${runId},1,${selectedPolicy.id},${selectedPolicy.hash},'completed',${JSON.stringify(input)}::jsonb,${JSON.stringify(assess(input))}::jsonb,now())`);
     await tx.execute(sql`insert into reviews(organization_id,project_id,id,evaluation_id,run_id,assigned_to,version,status,decision,annotation) values(${org},${project},${reviewId},${evaluationId},${runId},${user},2,'resolved','pass','Human-confirmed expected behavior.')`);
     await tx.execute(sql`insert into review_decisions(organization_id,project_id,review_id,reviewer_id,version,decision,annotation) values(${org},${project},${reviewId},${user},2,'pass','Human-confirmed expected behavior.')`);
@@ -41,7 +43,7 @@ async function publish(name = `regression-${namespace}`, kind = 'agent_regressio
 async function candidateRun(evidence = true) {
   const runId = `candidate-${randomUUID()}`, input = trace(runId);
   const accepted = await app.inject({ method: 'POST', url: '/v1/events', headers, payload: { projectId: project, events: input.events } }); expect(accepted.statusCode).toBe(202);
-  if (evidence) await tenant(org, user, tx => tx.execute(sql`insert into evidence(organization_id,project_id,run_id,body) values(${org},${project},${runId},${JSON.stringify(input.evidence[0])}::jsonb)`));
+  if (evidence) await tenant(org, user, async tx => {await bindProviderFixture(tx,org,project,input);await tx.execute(sql`insert into evidence(organization_id,project_id,run_id,body) values(${org},${project},${runId},${JSON.stringify(input.evidence[0])}::jsonb)`);});
   const result = await evaluateJob({ organizationId: org, projectId: project, runId, revision: 1, policyId: selectedPolicy.id, explicit: true });
   expect(result.status).toBe('completed'); return runId;
 }

@@ -15,7 +15,7 @@ import { assert } from './errors.ts';
 const projectQuery = z.object({ projectId: z.uuid() });
 const objectId = z.object({ id: z.uuid() });
 const toDataset = (row: any): Dataset => ({ id: row.id, name: row.name, kind: row.kind, version: row.version, hash: row.hash, cases: row.cases, createdAt: new Date(row.created_at).toISOString() });
-const toEvaluation = (row: any): EvaluationSnapshot => ({ id: row.id, runId: row.run_id, revision: row.revision, policyId: row.policy_id, policyHash: row.policy_hash,
+const toEvaluation = (row: any): EvaluationSnapshot => ({ id: row.id, runId: row.run_id, runInstanceId: row.run_instance_id, revision: row.revision, policyId: row.policy_id, policyHash: row.policy_hash,
   processing: row.processing, frozenInput: row.frozen_input, providerResponse: row.provider_response, completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null });
 
 async function semanticGate(tx: Tx, projectId: string, policy: any): Promise<SemanticGate> {
@@ -38,7 +38,7 @@ async function comparison(tx: Tx, projectId: string, id: string) {
   const [policy] = await rows<any>(tx, sql`select * from policies where project_id=${projectId} and id=${experiment.policy_id}`);
   const snapshot = experiment.candidates as ExperimentSnapshot;
   assert(snapshot?.schemaVersion === '1.0' && Array.isArray(snapshot.candidates), 409, 'experiment_integrity', 'The experiment is missing a pinned regression manifest.');
-  const identities = snapshot.candidates.flatMap(candidate => candidate.runs).map(run => sql`(run_id=${run.runId} and revision=${run.revision})`);
+  const identities = snapshot.candidates.flatMap(candidate => candidate.runs).map(run => sql`(run_id=${run.runId} and run_instance_id=${run.runInstanceId ?? null}::uuid and revision=${run.revision})`);
   const evaluations = identities.length ? await rows<any>(tx, sql`select * from evaluations where project_id=${projectId} and policy_id=${experiment.policy_id} and (${sql.join(identities, sql` or `)})`) : [];
   try {
     return buildComparison({ experimentId: id, projectId, name: experiment.name, createdAt: new Date(experiment.created_at).toISOString(), dataset,
@@ -62,7 +62,7 @@ export async function regressionRoutes(app: FastifyInstance) {
     const a = await authorize(request, { sessionOnly: true, roles: ['owner', 'admin', 'member'], projectId: body.projectId });
     assert(new Set(body.cases.map(c => c.caseId ?? c.reviewId)).size === body.cases.length && new Set(body.cases.map(c => c.reviewId)).size === body.cases.length,
       400, 'duplicate_case', 'Each review and case ID may occur only once in a dataset version.');
-    return tenant(a.organizationId, a.userId, async tx => {
+    const published = await tenant(a.organizationId, a.userId, async tx => {
       await tx.execute(sql`select id from projects where id=${body.projectId} for update`);
       const cases: DatasetCase[] = [];
       for (const requested of body.cases) {
@@ -98,8 +98,9 @@ export async function regressionRoutes(app: FastifyInstance) {
       const hash = datasetHash({ name: body.name, kind: body.kind, version, cases });
       const [row] = await rows<any>(tx, sql`insert into datasets(organization_id,project_id,name,kind,version,cases,hash) values(${a.organizationId},${body.projectId},${body.name},${body.kind},${version},${JSON.stringify(cases)}::jsonb,${hash}) returning *`);
       await audit(tx, a.organizationId, a.userId, 'dataset.published', row.id);
-      return reply.code(201).send(toDataset(row));
+      return toDataset(row);
     });
+    return reply.code(201).send(published);
   });
   app.post('/v1/datasets/:id/replay', async request => {
     const { id } = objectId.parse(request.params); const { projectId } = projectQuery.parse(request.body);
@@ -114,7 +115,7 @@ export async function regressionRoutes(app: FastifyInstance) {
   app.post('/v1/experiments', async (request, reply) => {
     const body = experimentSchema.parse(request.body);
     const a = await authorize(request, { scope: 'ci', roles: ['owner', 'admin', 'member'], projectId: body.projectId });
-    return tenant(a.organizationId, a.userId, async tx => {
+    const report = await tenant(a.organizationId, a.userId, async tx => {
       const dataset = assertDataset((await rows(tx, sql`select * from datasets where project_id=${body.projectId} and id=${body.datasetId}`))[0]);
       assert(dataset.kind === 'agent_regression', 409, 'wrong_dataset_kind', 'Evaluator calibration datasets cannot be used for agent regression experiments.');
       assert(!body.datasetHash || body.datasetHash === dataset.hash, 409, 'dataset_mismatch', 'The supplied dataset hash does not match this immutable version.');
@@ -127,7 +128,7 @@ export async function regressionRoutes(app: FastifyInstance) {
       for (const candidate of body.candidates) {
         const runs: PinnedCandidate['runs'] = [];
         for (const mapping of candidate.runs) {
-          const [run] = await rows<any>(tx, sql`select id,revision,execution_status,expired_at,environment from runs where project_id=${body.projectId} and id=${mapping.runId} for share`);
+          const [run] = await rows<any>(tx, sql`select id,instance_id,revision,execution_status,expired_at,environment from runs where project_id=${body.projectId} and id=${mapping.runId} for share`);
           assert(run, 404, 'run_not_found', 'A candidate run was not found in this project. Submit its trace first.');
           assert(!run.expired_at, 410, 'data_expired', 'Candidate run content has expired.');
           assert(run.execution_status !== 'running', 409, 'run_incomplete', 'Candidate runs need a terminal execution event before comparison.');
@@ -135,11 +136,11 @@ export async function regressionRoutes(app: FastifyInstance) {
           const [evaluation] = mapping.evaluationId
             ? await rows<any>(tx, sql`select * from evaluations where project_id=${body.projectId} and id=${mapping.evaluationId}`)
             : await rows<any>(tx, sql`select * from evaluations where project_id=${body.projectId} and run_id=${mapping.runId} and revision=${run.revision} and policy_id=${body.policyId}`);
-          if (mapping.evaluationId) assert(evaluation && evaluation.run_id === run.id && evaluation.policy_id === policy.id && evaluation.policy_hash === policy.hash,
+          if (mapping.evaluationId) assert(evaluation && evaluation.run_id === run.id && evaluation.run_instance_id === run.instance_id && evaluation.policy_id === policy.id && evaluation.policy_hash === policy.hash,
             409, 'evaluation_mismatch', 'The candidate evaluation must belong to this run and the selected immutable policy.');
           assert(!evaluation || evaluation.revision === run.revision || evaluation.completed_at, 409, 'evaluation_superseded', 'A pending older evaluation cannot process a newer run revision. Select a completed evaluation or the current run revision.');
           const revision = evaluation?.revision ?? run.revision;
-          runs.push({ caseId: mapping.caseId, runId: mapping.runId, revision, ...(evaluation ? { evaluationId: evaluation.id } : {}) });
+          runs.push({ caseId: mapping.caseId, runId: mapping.runId, runInstanceId: run.instance_id, revision, ...(evaluation ? { evaluationId: evaluation.id } : {}) });
           if (!evaluation?.completed_at && body.evaluateMissing) requestedEvaluations.set(`${mapping.runId}:${revision}`, { runId: mapping.runId, revision });
         }
         candidates.push({ name: candidate.name, runs });
@@ -151,8 +152,9 @@ export async function regressionRoutes(app: FastifyInstance) {
         for (const run of requestedEvaluations.values()) await enqueue(tx, { organizationId: a.organizationId, projectId: body.projectId, runId: run.runId, revision: run.revision, policyId: policy.id, explicit: true }, 0);
       }
       await audit(tx, a.organizationId, a.userId, 'experiment.created', experiment.id);
-      return reply.code(201).send(await comparison(tx, body.projectId, experiment.id));
+      return comparison(tx, body.projectId, experiment.id);
     });
+    return reply.code(201).send(report);
   });
   app.get('/v1/experiments', async request => {
     const { projectId } = projectQuery.parse(request.query); const a = await authorize(request, { scope: 'ci', projectId });

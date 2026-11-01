@@ -7,6 +7,7 @@ import { defaultPolicy } from '@agent-quality/contracts';
 import { ingest } from '../../apps/api/src/ingestion.ts';
 import { evaluateJob } from '../../apps/worker/src/evaluate.ts';
 import { makeFrozen } from '../fixtures/evaluation.ts';
+import { bindProviderFixture } from '../fixtures/provider-connection.ts';
 import { queue,stopQueue,type RunJob } from '../../packages/db/src/queue.ts';
 const org='10000000-0000-4000-8000-000000000001',project='20000000-0000-4000-8000-000000000001';
 afterAll(async()=>{await stopQueue();await pool.end();});
@@ -15,7 +16,7 @@ async function setup(semantic=false):Promise<RunJob>{
   await ingest({organizationId:org,projectId:project,userId:null,role:'member',scopes:['ingest']},project,input.events);
   const policy=semantic?{...defaultPolicy,semanticEnabled:true,checks:[{id:'claim',type:'completion_claim',primitive:'noul',instructions:'Does the final response claim completion?',threshold:0.95,blocking:false}]}:defaultPolicy;
   const policyId=randomUUID();
-  await tenant(org,null,async tx=>{await tx.execute(sql`select id from projects where id=${project} for update`);const [{version}]=await rows<any>(tx,sql`select max(version)+1 as version from policies where project_id=${project}`);await tx.execute(sql`insert into policies(organization_id,project_id,id,version,definition,hash) values(${org},${project},${policyId},${version},${JSON.stringify(policy)}::jsonb,'test-policy-hash')`);await tx.execute(sql`insert into evidence(organization_id,project_id,run_id,body) values(${org},${project},${runId},${JSON.stringify(input.evidence[0])}::jsonb)`);});
+  await tenant(org,null,async tx=>{await bindProviderFixture(tx,org,project,input);await tx.execute(sql`select id from projects where id=${project} for update`);const [{version}]=await rows<any>(tx,sql`select max(version)+1 as version from policies where project_id=${project}`);await tx.execute(sql`insert into policies(organization_id,project_id,id,version,definition,hash) values(${org},${project},${policyId},${version},${JSON.stringify(policy)}::jsonb,'test-policy-hash')`);await tx.execute(sql`insert into evidence(organization_id,project_id,run_id,body) values(${org},${project},${runId},${JSON.stringify(input.evidence[0])}::jsonb)`);});
   return {organizationId:org,projectId:project,runId,revision:1,policyId,explicit:true};
 }
 it('freezes a revision and charges a successful evaluation once under duplicate jobs',async()=>{

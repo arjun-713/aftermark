@@ -48,17 +48,19 @@ export function summarize(cases: CaseReport[]): Summary {
 }
 const summaryStatus = (summary: Summary): ReportStatus => summary.failed ? 'failed' : summary.indeterminate ? 'indeterminate' : 'passed';
 
-export function compareCase(source: RegressionCase, mapping: { runId: string; revision: number }, evaluation: EvaluationSnapshot | undefined,
+export function compareCase(source: RegressionCase, mapping: { runId: string; runInstanceId?: string; revision: number }, evaluation: EvaluationSnapshot | undefined,
   policy: { id: string; hash: string; definition: Policy }, gate: SemanticGate, allowRequiredUnknown = false): CaseReport {
   const assertions: AssertionResult[] = [];
   const add = (code: string, status: AssertionResult['status'], message: string) => assertions.push({ code, status, message });
-  const base: CaseReport = { caseId: source.id, runId: mapping.runId, revision: mapping.revision, evaluationId: evaluation?.id ?? null,
+  const base: CaseReport = { caseId: source.id, runId: mapping.runId, runInstanceId: mapping.runInstanceId ?? null, revision: mapping.revision, evaluationId: evaluation?.id ?? null,
     expectedBehavior: source.expectedBehavior, executionStatus: null, qualityDecision: null, verification: 'unknown', status: 'indeterminate',
     requiredUnknown: source.expectations.filter(outcome => outcome.required).length, semanticReviewOnly: 0, assertions, findings: [], limitations: [] };
+  if (!mapping.runInstanceId) { add('run_instance_unbound', 'unknown', 'This legacy mapping has no immutable run instance. Create a new experiment.'); return base; }
   if (!evaluation || !evaluation.completedAt || !evaluation.frozenInput) {
     add('evaluation_pending', 'unknown', 'The pinned run revision has no completed frozen evaluation under the selected policy.'); return base;
   }
-  if (evaluation.runId !== mapping.runId || evaluation.revision !== mapping.revision || evaluation.policyId !== policy.id || evaluation.policyHash !== policy.hash ||
+  if (evaluation.runId !== mapping.runId || evaluation.runInstanceId !== mapping.runInstanceId || evaluation.revision !== mapping.revision || evaluation.policyId !== policy.id || evaluation.policyHash !== policy.hash ||
+      evaluation.frozenInput.runInstanceId && evaluation.frozenInput.runInstanceId !== mapping.runInstanceId ||
       contentHash(evaluation.frozenInput.policy) !== contentHash(policy.definition) || evaluation.frozenInput.id !== mapping.runId || evaluation.frozenInput.revision !== mapping.revision) {
     add('evaluation_identity', 'unknown', 'The evaluation does not match the pinned run revision and immutable policy.'); return base;
   }
@@ -115,14 +117,14 @@ export function buildComparison(input: {
   if (input.dataset.kind !== 'agent_regression') throw new Error('Evaluator calibration datasets cannot be used for agent regression experiments.');
   if (input.dataset.hash !== input.snapshot.datasetHash || input.policy.hash !== input.snapshot.policyHash) throw new Error('The experiment does not match its immutable dataset and policy hashes.');
   validateCoverage(input.dataset.cases.map(c => c.id), input.snapshot.candidates);
-  const byIdentity = new Map(input.evaluations.map(evaluation => [`${evaluation.runId}:${evaluation.revision}`, evaluation]));
+  const byIdentity = new Map(input.evaluations.map(evaluation => [JSON.stringify([evaluation.runId,evaluation.runInstanceId,evaluation.revision]), evaluation]));
   const byId = new Map(input.evaluations.map(evaluation => [evaluation.id, evaluation]));
   const caseById = new Map((input.dataset.cases as RegressionCase[]).map(value => [value.id, value]));
   let ready = true;
   const candidates = input.snapshot.candidates.map(candidate => {
     const cases = candidate.runs.map(mapping => {
-      const evaluation = mapping.evaluationId ? byId.get(mapping.evaluationId) : byIdentity.get(`${mapping.runId}:${mapping.revision}`);
-      if (!evaluation?.completedAt) ready = false;
+      const evaluation = mapping.evaluationId ? byId.get(mapping.evaluationId) : byIdentity.get(JSON.stringify([mapping.runId,mapping.runInstanceId,mapping.revision]));
+      if (mapping.runInstanceId && !evaluation?.completedAt) ready = false;
       return compareCase(caseById.get(mapping.caseId)!, mapping, evaluation, input.policy, input.snapshot.semanticGate, input.snapshot.allowRequiredUnknown);
     });
     const summary = summarize(cases); return { name: candidate.name, status: summaryStatus(summary), summary, cases };

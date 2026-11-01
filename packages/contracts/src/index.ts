@@ -44,11 +44,23 @@ export const receiptSchema = z.object({
   receiptId: id, projectId: z.uuid(), runId: id, outcomeId: id, observedAt: z.string().datetime({ offset:true }),
   resourceId: z.string().min(1).max(256), properties: assertionsSchema, status: z.enum(['observed', 'unavailable'])
 }).strict();
-export type Evidence = {
-  id: string; outcomeId: string; source: 'provider_observation' | 'customer_verifier' | 'reported_tool_result';
-  provider: string; observedAt: string; resourceId: string; properties: Record<string, unknown>; status: 'observed' | 'unavailable';
-  reason?: string;
-};
+export const connectionBindingSchema = z.object({ connectionId: z.uuid(), verificationVersion: z.number().int().positive() }).strict();
+export type ConnectionBinding = z.infer<typeof connectionBindingSchema>;
+export const providerResourceIdentitySchema = z.discriminatedUnion('provider', [
+  z.object({ provider: z.literal('github'), repository: z.string().regex(/^[\w.-]+\/[\w.-]+$/), id: z.string().min(1).max(256) }).strict(),
+  z.object({ provider: z.literal('hubspot'), id: z.string().min(1).max(256) }).strict(),
+]);
+export type ProviderResourceIdentity = z.infer<typeof providerResourceIdentitySchema>;
+export const verificationBindingSchema = z.object({ resourceIdentity: providerResourceIdentitySchema, connectionBinding: connectionBindingSchema }).strict();
+export type VerificationBinding = z.infer<typeof verificationBindingSchema>;
+export const evidenceSchema = z.object({
+  id: z.string(), outcomeId: z.string(), source: z.enum(['provider_observation', 'customer_verifier', 'reported_tool_result']),
+  provider: z.string(), observedAt: z.string().datetime({ offset: true }), resourceId: z.string(),
+  properties: z.record(z.string(), z.unknown()), status: z.enum(['observed', 'unavailable']), reason: z.string().optional(),
+  // Old unbound observations remain readable but cannot establish provider verification.
+  resourceIdentity: providerResourceIdentitySchema.optional(), connectionBinding: connectionBindingSchema.optional(),
+});
+export type Evidence = z.infer<typeof evidenceSchema>;
 export type Finding = { id: string; code: string; severity: 'high' | 'medium' | 'info'; summary: string; evidenceIds: string[]; outcomeId?: string; blocking: boolean; probability?: number };
 export type Assessment = {
   rulesVersion: string;

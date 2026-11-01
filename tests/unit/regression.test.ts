@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { makeFrozen } from '../fixtures/evaluation.ts';
+import { makeFrozen,fixtureRunInstanceId } from '../fixtures/evaluation.ts';
 import {
   buildComparison, compareCase, contentHash, datasetHash, expectedBehaviorSchema, regressionCaseSchema, validateCoverage, validateDataset,
   type ComparisonReport, type Dataset, type EvaluationSnapshot, type ExperimentSnapshot, type RegressionCase,
@@ -27,14 +27,14 @@ function sourceCase(): RegressionCase {
     expectedBehavior: { kind: 'completion', description: 'Create the support issue.', executionStatuses: ['completed'], messageIncludes: [], outcomes: [] } });
 }
 function evaluation(input = frozen()): EvaluationSnapshot {
-  return { id: randomUUID(), runId: input.id, revision: input.revision, policyId, policyHash: policy().hash, processing: 'completed', frozenInput: input,
+  return { id: randomUUID(), runId: input.id, runInstanceId: input.runInstanceId, revision: input.revision, policyId, policyHash: policy().hash, processing: 'completed', frozenInput: input,
     providerResponse: null, completedAt: '2026-11-01T12:00:00Z' };
 }
 function reportWith(e = evaluation(), source = sourceCase(), allowRequiredUnknown = false): ComparisonReport {
   const dataset: Dataset = { id: randomUUID(), name: 'Support cases', kind: 'agent_regression', version: 1, hash: '', cases: [source], createdAt: '2026-11-01T12:00:00Z' };
   dataset.hash = datasetHash(dataset);
   const snapshot: ExperimentSnapshot = { schemaVersion: '1.0', datasetHash: dataset.hash, policyHash: policy().hash, semanticGate: gate(), allowRequiredUnknown,
-    candidates: [{ name: 'candidate', runs: [{ caseId: source.id, runId: e.runId, revision: e.revision }] }] };
+    candidates: [{ name: 'candidate', runs: [{ caseId: source.id, runId: e.runId, runInstanceId: e.runInstanceId, revision: e.revision }] }] };
   return buildComparison({ experimentId: randomUUID(), projectId, name: 'CI', createdAt: dataset.createdAt, dataset, policy: policy(), snapshot, evaluations: [e] });
 }
 
@@ -62,15 +62,15 @@ describe('immutable regression contracts', () => {
   it('allows a reviewed honest failure while preserving contradicted verification', () => {
     const source = sourceCase(); source.expectedBehavior = expectedBehaviorSchema.parse({ kind: 'honest_failure', description: 'Acknowledge the unavailable issue.', executionStatuses: ['failed'], messageIncludes: ['could not create'], outcomes: [{ id: 'issue', verification: 'contradicted' }] });
     const input = frozen(); input.executionStatus = 'failed'; input.events.at(-1)!.kind = 'run.failed'; input.events.at(-1)!.payload.text = 'I could not create the support issue.'; input.evidence[0].properties.state = 'closed';
-    const result = compareCase(source, { runId: input.id, revision: 1 }, evaluation(input), policy(), gate());
+    const result = compareCase(source, { runId: input.id, runInstanceId: fixtureRunInstanceId, revision: 1 }, evaluation(input), policy(), gate());
     expect(result.status).toBe('passed'); expect(result.qualityDecision).toBe('fail'); expect(result.verification).toBe('contradicted');
-    input.events.at(-1)!.payload.text = 'Created the support issue.'; expect(compareCase(source, { runId: input.id, revision: 1 }, evaluation(input), policy(), gate()).status).toBe('failed');
+    input.events.at(-1)!.payload.text = 'Created the support issue.'; expect(compareCase(source, { runId: input.id, runInstanceId: fixtureRunInstanceId, revision: 1 }, evaluation(input), policy(), gate()).status).toBe('failed');
   });
   it('accepts explicit escalation text without claiming an externally verified handoff', () => {
     const source = sourceCase(); source.expectations = []; source.frozenInput.events = source.frozenInput.events.filter(e => e.kind !== 'outcome.expected'); source.traceHash = contentHash(source.frozenInput);
     source.expectedBehavior = expectedBehaviorSchema.parse({ kind: 'escalation', description: 'State that a person must finish the request.', executionStatuses: ['completed'], messageIncludes: ['needs a human'] });
     const input = structuredClone(source.frozenInput); input.events.at(-1)!.payload.text = 'This request needs a human to finish.';
-    const result = compareCase(source, { runId: input.id, revision: 1 }, evaluation(input), policy(), gate());
+    const result = compareCase(source, { runId: input.id, runInstanceId: fixtureRunInstanceId, revision: 1 }, evaluation(input), policy(), gate());
     expect(result.status).toBe('passed'); expect(result.qualityDecision).toBe('unknown'); expect(result.verification).toBe('not_required');
   });
   it('retains unknown verification when it is explicitly allowed for an escalation', () => {
@@ -88,9 +88,9 @@ describe('immutable regression contracts', () => {
     const source = sourceCase(); const selected = { ...policy(), hash: contentHash(input.policy), definition: input.policy }; const e = evaluation(input); e.policyHash = selected.hash;
     e.providerResponse = { model: 'jev-1.14.0', answers: { claim: { type: 'noul', noul: 0.99 } }, usage: { input_tokens: 100, output_tokens: 10 } };
     const approved = { ...gate(), calibrationApproved: true, detectorHash: detectorHash(input.policy) };
-    expect(compareCase(source, { runId: input.id, revision: 1 }, e, selected, { ...approved, policyActivated: false }).status).toBe('passed');
-    expect(compareCase(source, { runId: input.id, revision: 1 }, e, selected, { ...approved, detectorHash: 'wrong-detector' }).status).toBe('passed');
-    expect(compareCase(source, { runId: input.id, revision: 1 }, e, selected, approved).status).toBe('failed');
+    expect(compareCase(source, { runId: input.id, runInstanceId: fixtureRunInstanceId, revision: 1 }, e, selected, { ...approved, policyActivated: false }).status).toBe('passed');
+    expect(compareCase(source, { runId: input.id, runInstanceId: fixtureRunInstanceId, revision: 1 }, e, selected, { ...approved, detectorHash: 'wrong-detector' }).status).toBe('passed');
+    expect(compareCase(source, { runId: input.id, runInstanceId: fixtureRunInstanceId, revision: 1 }, e, selected, approved).status).toBe('failed');
   });
 });
 
