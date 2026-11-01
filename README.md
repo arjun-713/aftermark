@@ -10,6 +10,7 @@ npm install
 docker compose up -d db
 npm run db:migrate
 npm run db:seed
+npm run db:samples # optional, clearly labeled local examples
 npm run dev:api
 # in another terminal
 npm run dev:web
@@ -20,6 +21,7 @@ Open http://localhost:3000. Seed credentials are development-only: `alex@example
 ```sh
 npm run typecheck
 npm run test:integration
+npm run test:e2e # builds must be current; uses local Chrome by default
 ```
 
 See [implementation evidence](docs/IMPLEMENTATION.md). Provider credentials belong in ignored environment files or the hosting secret store. Do not use the development database passwords in a deployed environment.

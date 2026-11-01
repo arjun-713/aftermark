@@ -19,6 +19,7 @@ export async function managementRoutes(app:FastifyInstance) {
     const a=await authorize(request,{roles:['owner','admin'],sessionOnly:true}); const {name}=z.object({name:z.string().min(1).max(120)}).parse(request.body);
     return tenant(a.organizationId,a.userId,async tx=>{
       const [sub]=await rows<any>(tx,sql`select * from subscriptions where organization_id=${a.organizationId} for update`);
+      assert(['active','trialing'].includes(sub.status)&&Date.parse(sub.period_end)>Date.now(),402,'subscription_inactive','An active subscription or trial is required to create a project.');
       const [{count}]=await rows<any>(tx,sql`select count(*)::int as count from projects`);
       assert(count<plans[sub.plan as keyof typeof plans].projects,402,'project_limit','The workspace project allowance is exhausted.');
       const [project]=await rows<any>(tx,sql`insert into projects(organization_id,name) values(${a.organizationId},${name}) returning id,name`);

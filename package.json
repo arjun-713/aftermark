@@ -17,6 +17,7 @@
     "dev:worker": "tsx watch apps/worker/src/index.ts",
     "db:migrate": "tsx packages/db/src/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "db:samples": "tsx scripts/sample-data.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -24,11 +25,12 @@
     "test:python": "PYTHONPATH=sdk/python/src python3 -m unittest discover -s tests/python -v",
     "build": "npm run build -w @agent-quality/web",
     "aq": "tsx packages/cli/src/index.ts",
-    "check:release": "tsx scripts/release-gates.ts"
-    ,"calibrate": "tsx scripts/calibration.ts"
+    "check:release": "tsx scripts/release-gates.ts",
+    "calibrate": "tsx scripts/calibration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1161.0",
+    "@aws-sdk/client-s3": "3.1161.0",
     "@fastify/cookie": "11.1.5",
     "@fastify/rate-limit": "10.3.0",
     "@fastify/swagger": "9.9.3",
@@ -56,6 +58,8 @@
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "esbuild": "0.28.2",
+    "prettier": "3.9.10",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "5.0.5"

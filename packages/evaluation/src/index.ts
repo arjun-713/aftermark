@@ -27,7 +27,7 @@ export function assess(input:FrozenRun,semantic?:SemanticResult,semanticError?:s
   if(!events.some(e=>e.kind==='run.started'))limitations.push('The run start event is missing.');
   if(!terminal || input.executionStatus==='running')limitations.push('No completed execution boundary is recorded.');
   if(events.some(e=>e.payload.metadata?.truncated || e.payload.text?.includes('[TRUNCATED')))limitations.push('Part of the trace was truncated before evaluation.');
-  const spanIds=new Set(events.filter(e=>e.kind==='span.started').map(e=>e.spanId));
+  const spanIds=new Set(events.filter(e=>e.kind==='span.started'||e.kind==='run.started').map(e=>e.spanId));
   if(events.some(e=>e.parentSpanId && !spanIds.has(e.parentSpanId)))limitations.push('A parent span is missing.');
   if(events.some(e=>e.kind==='span.started' && !events.some(end=>end.kind==='span.completed' && end.spanId===e.spanId)))limitations.push('A span has no closing event.');
   const calls=events.filter(e=>e.kind==='tool.called');const results=events.filter(e=>e.kind==='tool.result');
@@ -77,5 +77,5 @@ export function assess(input:FrozenRun,semantic?:SemanticResult,semanticError?:s
   const required=outcomes.filter(o=>o.required);
   const verifiedCompletion=input.executionStatus==='completed' && required.length>0 && required.every(o=>o.verification==='verified') && !limitations.length;
   const decision=findings.some(f=>f.blocking)?'fail':limitations.length || required.some(o=>o.verification==='unknown')?'unknown':findings.length?'review':verifiedCompletion?'pass':'unknown';
-  return {processing:limitations.length?'partial':'completed',decision,outcomes,findings,limitations:[...new Set(limitations)],verifiedCompletion,model:semantic?.model??null,usage:semantic?.usage??0};
+  return {rulesVersion:'outcome-rules-1',processing:limitations.length?'partial':'completed',decision,outcomes,findings,limitations:[...new Set(limitations)],verifiedCompletion,model:semantic?.model??null,usage:semantic?.usage??0};
 }

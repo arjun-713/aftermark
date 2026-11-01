@@ -51,6 +51,7 @@ export type Evidence = {
 };
 export type Finding = { id: string; code: string; severity: 'high' | 'medium' | 'info'; summary: string; evidenceIds: string[]; outcomeId?: string; blocking: boolean; probability?: number };
 export type Assessment = {
+  rulesVersion: string;
   processing: 'completed' | 'partial' | 'error'; decision: typeof qualityDecisions[number];
   outcomes: { id: string; name: string; required: boolean; verification: 'verified' | 'contradicted' | 'unknown'; evidenceIds: string[]; reason: string }[];
   findings: Finding[]; limitations: string[]; verifiedCompletion: boolean; model: string | null; usage: number;
