@@ -4,6 +4,7 @@ import { canonical } from '../../contracts/src/redaction.ts';
 export type FrozenRun={id:string;revision:number;executionStatus:string;startedAt:string;completedAt:string|null;events:AgentEvent[];evidence:Evidence[];policy:Policy;calibrationApproved?:boolean};
 export type SemanticResult={model:string;usage:number;probabilities:Record<string,number>};
 export function readPath(value:unknown,path:string):unknown {
+  if(!path.split('.').some(key=>['__proto__','constructor','prototype'].includes(key)) && value && typeof value==='object' && Object.hasOwn(value,path))return (value as Record<string,unknown>)[path];
   for(const key of path.split('.')){if(['__proto__','constructor','prototype'].includes(key) || !value || typeof value!=='object' || !Object.hasOwn(value,key))return undefined;value=(value as Record<string,unknown>)[key];}return value;
 }
 const redacted=(v:unknown)=>v===undefined || /\[(REDACTED|TRUNCATED)/.test(JSON.stringify(v)??'');

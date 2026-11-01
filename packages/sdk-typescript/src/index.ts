@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID,createHmac } from 'node:crypto';
 import { eventSchema,type AgentEvent,type Outcome } from '@agent-quality/contracts';
-import { canonical,redact } from '../../contracts/src/redaction.ts';
+import { redact } from '../../contracts/src/redaction.ts';
 export type Counters={delivered:number;dropped:number;retries:number;truncated:number;deliveryFailures:number};
 type Context={runId:string;spanId?:string;parentSpanId?:string};
 export class AgentQuality {
@@ -62,8 +62,8 @@ export class AgentQuality {
   async close(){clearInterval(this.timer);await this.flush();}
 }
 export async function submitEvidence(options:{endpoint:string;verifierKey:string;receipt:unknown}):Promise<boolean>{
-  try{const body=redact(options.receipt);const timestamp=String(Math.floor(Date.now()/1000));const signature=createHmac('sha256',options.verifierKey).update(`${timestamp}.${canonical(body)}`).digest('hex');
-    const result=await fetch(`${options.endpoint.replace(/\/$/,'')}/v1/evidence`,{method:'POST',headers:{Authorization:`Bearer ${options.verifierKey}`,'Content-Type':'application/json','x-receipt-timestamp':timestamp,'x-receipt-signature':signature},body:JSON.stringify(body),signal:AbortSignal.timeout(5000)});return result.ok;
+  try{const body=JSON.stringify(redact(options.receipt));const timestamp=String(Math.floor(Date.now()/1000));const signature=createHmac('sha256',options.verifierKey).update(`${timestamp}.${body}`).digest('hex');
+    const result=await fetch(`${options.endpoint.replace(/\/$/,'')}/v1/evidence`,{method:'POST',headers:{Authorization:`Bearer ${options.verifierKey}`,'Content-Type':'application/json','x-receipt-timestamp':timestamp,'x-receipt-signature':signature},body,signal:AbortSignal.timeout(5000)});return result.ok;
   }catch{return false;}
 }
 export type { Outcome,AgentEvent };

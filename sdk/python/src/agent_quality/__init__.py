@@ -189,9 +189,9 @@ def submit_evidence(*, endpoint, verifier_key, receipt):
     try:
         receipt = redact(receipt)
         timestamp = str(int(time.time()))
-        canonical = json.dumps(receipt, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        signature = hmac.new(verifier_key.encode(), (timestamp + "." + canonical).encode(), hashlib.sha256).hexdigest()
-        request = urllib.request.Request(endpoint.rstrip("/") + "/v1/evidence", json.dumps(receipt).encode(), {"Authorization": "Bearer " + verifier_key, "Content-Type": "application/json", "x-receipt-timestamp": timestamp, "x-receipt-signature": signature})
+        body = json.dumps(receipt, ensure_ascii=False).encode()
+        signature = hmac.new(verifier_key.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
+        request = urllib.request.Request(endpoint.rstrip("/") + "/v1/evidence", body, {"Authorization": "Bearer " + verifier_key, "Content-Type": "application/json", "x-receipt-timestamp": timestamp, "x-receipt-signature": signature})
         with urllib.request.urlopen(request, timeout=5) as response:
             return response.status in (200, 202)
     except Exception:

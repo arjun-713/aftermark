@@ -11,6 +11,8 @@ import { managementRoutes } from './management.ts';
 import { ingestionRoutes } from './ingestion.ts';
 import { runRoutes } from './runs.ts';
 import { evaluationRoutes } from './evaluations.ts';
+import { evidenceRoutes } from './evidence.ts';
+import { connectionRoutes } from './connections.ts';
 
 export async function buildServer() {
   const app=Fastify({bodyLimit:1048576,ajv:{customOptions:{removeAdditional:false,coerceTypes:false}},disableRequestLogging:true,logger:config.NODE_ENV!=='test'?{level:'info',redact:['req.headers.authorization','req.headers.cookie','req.body','res.headers.set-cookie']}:false,trustProxy:false});
@@ -31,5 +33,6 @@ export async function buildServer() {
   app.get('/health',async()=>({status:'ok'}));
   app.get('/ready',async(_request,reply)=>{try{await pool.query('select 1'); return {status:'ready'};}catch{return reply.code(503).send({status:'unavailable'});}});
   await authRoutes(app); await managementRoutes(app);await ingestionRoutes(app);await runRoutes(app);await evaluationRoutes(app);
+  await connectionRoutes(app);await app.register(evidenceRoutes);
   return app;
 }
