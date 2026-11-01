@@ -16,6 +16,8 @@ An active provider subscription grants its plan allowance only until its verifie
 
 The operations scheduler calls `reconcileBilling(provider)` from `packages/billing/src/index.ts` once daily. Construct the provider with `const settings=billingConfig(); const provider=settings ? new DodoProvider(settings) : null`. The paginated sweep queries every linked subscription, checks completed unbound checkout sessions through their payment's subscription ID, and expires elapsed local trials. It returns counts only; it logs no provider bodies or credentials. `reconcileBilling(null)` still expires trials. Each workspace failure is isolated. There is no public global reconciliation endpoint. An ambiguous checkout without a stored provider session can be recovered by its signed webhook; otherwise it needs provider-side investigation before another checkout is attempted.
 
+Evaluation units remain charged after a run, evaluation or project is deleted. Migration `0013_usage_survives_project.sql` keeps the content-free ledger under an organization foreign key only; project and evaluation UUIDs are opaque historical references. Consumed, reserved and ambiguous entries still count in the workspace's current billing period. Detailed content erasure cannot replenish that allowance. Accounting retention removes eligible old ledger records separately, and deleting the entire workspace cascades its ledger.
+
 The JSON API requires a member session and `x-workspace-id`:
 
 | Method and path | Role | Result |
