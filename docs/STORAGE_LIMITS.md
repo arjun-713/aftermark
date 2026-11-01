@@ -1,0 +1,53 @@
+# Retained content limits
+
+Retained redacted trace content has a separate byte budget from evaluation units, provider tokens, billing periods and retention days. Default limits are **64 MiB for trial**, **512 MiB for Starter**, and **2 GiB for Team**. These are binary byte quantities: 67,108,864; 536,870,912; and 2,147,483,648 bytes. They do not reset on renewal. Content must be removed before its storage charge is released.
+
+Deployment operators may explicitly set `STORAGE_TRIAL_BYTES`, `STORAGE_STARTER_BYTES` and `STORAGE_TEAM_BYTES`. Values must be positive safe integer byte counts. Invalid settings fail rather than silently changing the quota. There is no client-facing limit-editing endpoint. Internal `limits` options exist for server configuration and isolated tests; never construct them from request bodies, query parameters or customer metadata.
+
+The higher paid limit applies only to an unexpired `active` Starter or Team subscription with a provider subscription link and a completed, non-future reconciliation timestamp. Missing, unknown, unverified, cancelled, paused, on-hold, past-due or expired subscriptions use the trial cap. This applies to usage reads as well as writes. Reading or applying a storage limit never changes subscription status, grants evaluations or creates a paid entitlement. A downgrade may leave retained content above the lower cap; the system allows shrinking and deletion while refusing further growth.
+
+## Measurement and identities
+
+`storage_budgets` contains one locked counter per organization. `storage_resources` contains an absolute byte count per category and resource identity. Project-scoped identities encode both project UUID and resource ID; archive object identities use their private object path. Retrying a reservation or setting the same total does not increment usage. Reusing a content identity for another run is rejected. Every query names the organization explicitly, in addition to RLS.
+
+The canonical measurement counts each persisted row once: runs, events, event identity keys, evidence, evaluations including frozen input/provider response/assessment, reviews and decisions, curated datasets, experiment reports, calibration reports and archive pointers. When alerts are installed, retained delivery payload rows are included too. A copied event inside frozen evaluation input and a curated dataset is counted in each retained copy. Identical content hashes do not imply shared storage.
+
+Each database content row is charged twice its UTF-8 JSON serialization size plus 512 bytes of resource overhead. The multiplier allows for JSON representation and metadata; it is deliberately conservative. It describes a logical retained-content quota, not PostgreSQL filesystem allocation, indexes, WAL, backups or provider storage invoices. Control-plane credentials, workspace profiles, policies, aggregate metrics, accounting rows and audit logs are outside this content quota and retain their own operational controls. `retainedValueBytes(value)` provides the same conservative estimate for preflight reservations; `syncRetainedStorage()` measures complete current database rows before commit.
+
+Archive objects are charged their verified object byte length plus 512 bytes. The database pointer is counted separately as a small row. A pointer and an overlapping cleanup-outbox entry for the same object path do not charge the object twice. Removing a pointer, expiring a run, restoring hot content, or deleting a project does not release a still-retained object. The object charge remains until the private store confirms removal. Restored database content and a not-yet-purged archive are both retained and both count. Curated dataset and experiment copies remain charged until their own deletion, even after the source run expires.
+
+Legacy objects without a known positive size are marked `unmeasured`. Usage exposes `measurement_required` and zero writable remaining bytes; measured usage is a lower bound until those objects are sized or purged. New growth is refused. An operator can verify a size and use `setStorageBytes()` for the existing object identity. The system never assumes that an unknown object occupies zero storage.
+
+## Transaction hooks
+
+The root application owns authentication, durable ingestion and transaction boundaries. Register these hooks in **every** content writer before enabling the feature. The module does not silently patch ingestion, worker, retention or object-store implementations.
+
+```ts
+import { lockStorageBudget, syncRetainedStorage } from './packages/storage-budget/src/index.ts';
+
+await tenant(identity.organizationId, identity.userId, async tx => {
+  await lockStorageBudget(tx, identity.organizationId);
+  // Existing redacted content writes and queue operations, in this same tx.
+  await syncRetainedStorage(tx, identity.organizationId, { projectId, runId });
+});
+```
+
+Use `{projectId,runId}` after run/event/evidence/evaluation/review changes. Use `{projectId}` for curated datasets, experiment reports, project deletion and calibration changes. Omit the scope for a full reconciliation. Run-scoped synchronization deliberately preserves curated copies. Put synchronization after the last content write, including alert payload creation. When it throws, let the entire tenant transaction roll back; do not catch a quota error inside the transaction and commit the content anyway. A rejected event batch must roll back events, deduplication keys, run changes, queue work and storage accounting together.
+
+`syncRetainedStorage()` computes one net change for the current resource set. Shrinking one resource and expanding another is checked against the final total. `setStorageResources(tx,org,resources)` provides the same net check for explicit resource sizing. `setStorageBytes()` sets an absolute total. `reserveStorageBytes()` reserves an absolute maximum for an identity and never reduces an existing reservation. A finalized write replaces the reservation with its actual row size. Reservations must use the final category, project and resource identity so they are replaced rather than added again. Release abandoned reservations in the same rollback or cleanup transaction.
+
+For an archive/export object, reserve `archiveObjectBytes(serialized.length)` with category `archive_objects` and `resourceId: objectPath` before uploading. Retain the charge if an upload has an ambiguous outcome until the cleanup outbox verifies removal. After database pointers/content change, synchronize before commit. The existing operations outbox protects uploads that finish while their pointer transaction fails. Unknown legacy outbox objects block growth until measured or removed. Archiving may need temporary capacity while hot content and an object coexist; a quota failure must preserve the original database content and retain cleanup responsibility for any uploaded object.
+
+`releaseStorageBytes()` releases a database/reservation identity and refuses archive objects. After `store.remove()` succeeds, delete the matching cleanup-outbox entry and call `releaseArchiveObject(tx,org,objectPath)` in that transaction. Failed removal must keep both the outbox and charge. The helper safely handles cleanup after the workspace itself was erased; workspace budget rows already cascade with organization deletion. No project/run foreign key on storage resources can accidentally release pending objects.
+
+Lock order is **run advisory lock, if required → workspace storage budget → content row locks**. The worker may hold its per-run session advisory lock before entering the tenant transaction. Archive and deletion code must acquire any required advisory locks before the budget. API paths that never acquire advisory locks may take the budget first. Never wait for an advisory lock while holding the budget, or for the budget while holding a content row lock. Multi-run operations must acquire required advisory keys in a stable order first, or use nonblocking attempts and roll back/retry when busy. The storage module acquires neither advisory locks nor subscription row locks.
+
+## Bootstrap and read-only usage
+
+Migration `0012_storage_budget.sql` adds only accounting tables, RLS and grants. It does not fabricate empty usage for existing tenants. `bootstrapStorageBudget(tx,org)` takes the same workspace lock and backfills current rows and known object sizes. The first accounting mutation does this lazily too. Existing usage can exceed the cap after backfill; it is reported accurately and subsequent growth is refused. Run an explicit bootstrap sweep before rollout and wire all writers; merely applying the migration does not enforce quotas on unmodified writers.
+
+`readStorageUsage(tx,org)` does not write. Before bootstrap it estimates existing rows, returns `backfill_required` and exposes zero writable remaining bytes. Once ready, it returns aggregate `usedBytes`, `limitBytes`, `remainingBytes`, `overLimit`, `plan`, `basis`, `state`, `unmeasuredObjects`, byte/resource totals by category, and `units:"bytes"`. It never returns object paths, resource IDs, provider IDs, keys or content.
+
+Register `storageBudgetRoutes(app,{authorize})` to expose `GET /v1/storage/usage`. Supply the application's current workspace authorization callback; the module receives the authenticated organization/user and sets tenant context itself. There are no write endpoints or client limit overrides. The callback must never accept a workspace header without verifying membership or the scoped API credential.
+
+Focused tests use `aq_storage_test` only, with both database URLs explicitly pointing there. They cover concurrency, duplicate reservation identities, exact resize/release, whole-batch rollback, final net sizing, backfill of retained copies, object-pointer/outbox overlap, curated-copy retention, delayed object release, unknown sizes, paid-limit fallback, cross-workspace denial and read-only responses. Object-store success is simulated; no external uploads, provider calls or additional services are used.
