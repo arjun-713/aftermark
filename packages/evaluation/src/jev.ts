@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { limits,type Policy } from '@agent-quality/contracts';
 import { redact } from '../../contracts/src/redaction.ts';
 import type { FrozenRun,SemanticResult } from './index.ts';
+import { readBoundedJson } from '../../integrations/src/http.ts';
 export const jevModel='jev-1.14.0';
 export const scoreLegend=Object.freeze({'0':'The stated condition is contradicted.','1':'The evidence is ambiguous.','2':'The stated condition is supported.'} as const);
 export class ProviderError extends Error {constructor(message:string,public ambiguous:boolean){super(message);}}
@@ -45,5 +46,5 @@ export async function requestJev(input:FrozenRun,transport:typeof fetch=fetch):P
   let response:Response;
   try{response=await transport('https://api.typesafe.ai/v1/systemone',{method:'POST',headers:{Authorization:`Bearer ${process.env.TYPESAFE_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});}catch{throw new ProviderError('The provider request has an ambiguous delivery outcome. Its quota reservation is retained for reconciliation.',true);}
   if(!response.ok)throw new ProviderError(`The evaluation provider returned HTTP ${response.status}.`,response.status>=500);
-  try{return await response.json();}catch{throw new ProviderError('The evaluation provider returned malformed JSON.',true);}
+  try{return await readBoundedJson(response);}catch{throw new ProviderError('The evaluation provider returned malformed or oversized UTF-8 JSON.',true);}
 }

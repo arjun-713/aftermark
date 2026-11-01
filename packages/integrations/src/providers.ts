@@ -8,6 +8,7 @@ import { connectionBinding,resourceIdentity } from '../../evaluation/src/identit
 import { tenant,rows,sql } from '@agent-quality/db';
 import { encrypt,decrypt,type Envelope } from './encryption.ts';
 import type { RunJob } from '../../db/src/queue.ts';
+import { readBoundedJson } from './http.ts';
 const hosts=new Set(['api.github.com','api.hubapi.com','api.hubspot.com']);
 export async function providerFetch(url:string,init:RequestInit={},transport:typeof fetch=fetch){
   const parsed=new URL(url);if(parsed.protocol!=='https:' || !hosts.has(parsed.hostname)||parsed.username||parsed.password||parsed.port&&parsed.port!=='443')throw new Error('Provider request host is not allowed');
@@ -17,7 +18,7 @@ export const githubHeaders=(token:string)=>({Authorization:`Bearer ${token}`,Acc
 export const hubspotTokenSchema=z.object({access_token:z.string().min(1),refresh_token:z.string().min(1),expires_in:z.number().positive(),scopes:z.array(z.string()),hub_id:z.number().optional()});
 export async function exchangeHubspot(parameters:Record<string,string>,transport:typeof fetch=fetch){
   const response=await providerFetch('https://api.hubspot.com/oauth/v3/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({...parameters,client_id:process.env.HUBSPOT_CLIENT_ID!,client_secret:process.env.HUBSPOT_CLIENT_SECRET!})},transport);
-  if(!response.ok)throw new Error('HubSpot authorization failed');const token=hubspotTokenSchema.parse(await response.json());
+  if(!response.ok)throw new Error('HubSpot authorization failed');const token=hubspotTokenSchema.parse(await readBoundedJson(response));
   if(!token.scopes.includes('crm.objects.contacts.read')||token.scopes.some(s=>!['oauth','crm.objects.contacts.read'].includes(s)))throw new Error('HubSpot connection must have only contact read permissions');return {...token,expiresAt:Date.now()+token.expires_in*1000};
 }
 type HubspotCredential=z.infer<typeof hubspotTokenSchema>&{expiresAt:number};
@@ -63,7 +64,7 @@ export async function observe(outcome:Outcome,token:string,transport:typeof fetc
     }
     base.observedAt=new Date().toISOString();
     if(!response?.ok)return {...base,reason:response?.status===404?'The provider did not expose this record after bounded retries. Absence or access restrictions remain unknown.':`Provider observation unavailable (HTTP ${response?.status??'unknown'}).`};
-    const data=await response.json() as any;
+    const data=await readBoundedJson(response) as any;
     if(outcome.source==='github' && (data.pull_request || String(data.number)!==outcome.resource.id) || outcome.source==='hubspot' && String(data.id)!==outcome.resource.id)return {...base,reason:'The provider response did not identify the expected resource type or ID.'};
     const properties=outcome.source==='github'?data:data.properties;
     return {...base,status:'observed',properties:redact(Object.fromEntries(Object.keys(outcome.assertions).map(key=>[key,readPath(properties,key)])))};
