@@ -11,9 +11,7 @@ docker compose up -d db
 npm run db:migrate
 npm run db:seed
 npm run db:samples # optional, clearly labeled local examples
-npm run dev:api
-# in another terminal
-npm run dev:web
+npm run dev # web, API and evaluation worker
 ```
 
 Open http://localhost:3000. Seed credentials are development-only: `alex@example.test` or `sam@example.test`, password `local-password-123`. They belong to separate workspaces. Production refuses local authentication. API docs: http://localhost:4100/docs.
@@ -22,7 +20,8 @@ Open http://localhost:3000. Seed credentials are development-only: `alex@example
 npm run typecheck
 npm run test:integration
 npm run test:regression # separate disposable local database
+npm run test:commerce # signed billing protocol and membership fixtures
 npm run test:e2e # builds must be current; uses local Chrome by default
 ```
 
-See [implementation evidence](docs/IMPLEMENTATION.md). Provider credentials belong in ignored environment files or the hosting secret store. Do not use the development database passwords in a deployed environment.
+See [implementation evidence](docs/IMPLEMENTATION.md), [authentication setup](docs/AUTHENTICATION.md), [billing integration](docs/BILLING.md), and [customer integration examples](examples). Provider credentials belong in ignored environment files or the hosting secret store. Do not use the development database passwords in a deployed environment. Live provider, payment, calibration and deployment gates remain required before general availability.

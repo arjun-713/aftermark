@@ -5,6 +5,7 @@ export default defineConfig({
     exclude: [
       "tests/integration/regression.test.ts",
       "tests/integration/commerce.test.ts",
+      "tests/integration/billing.test.ts",
       "tests/integration/operations.test.ts",
     ],
     fileParallelism: false,

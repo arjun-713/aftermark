@@ -11,6 +11,12 @@ import {
   PendingScreen,
 } from "../../../components/screens";
 import { Datasets, Experiments } from "../../../components/regression-screens";
+import {
+  BillingSettings,
+  TeamSettings,
+  RetentionSettings,
+  TeamInvitationAcceptance,
+} from "../../../components/commerce-screens";
 export default function Page() {
   const path = usePathname().split("/").slice(2);
   if (path[0] === "runs" && path[1])
@@ -27,7 +33,12 @@ export default function Page() {
     case "onboarding":
       return <Onboarding />;
     case "settings":
+      if (["billing", "usage"].includes(path[1])) return <BillingSettings />;
+      if (path[1] === "team") return <TeamSettings />;
+      if (path[1] === "retention") return <RetentionSettings />;
       return <Settings />;
+    case "team":
+      return <TeamInvitationAcceptance />;
     case "datasets":
       return <Datasets />;
     case "experiments":

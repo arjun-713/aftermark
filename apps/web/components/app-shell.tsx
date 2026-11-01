@@ -291,7 +291,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
                   error={projects.error}
                   retry={() => projects.refetch()}
                 />
-              ) : !projectId && path !== "/app/onboarding" ? (
+              ) : !projectId &&
+                path !== "/app/onboarding" &&
+                path !== "/app/team" ? (
                 <Empty
                   title={
                     me.data?.workspaces.length

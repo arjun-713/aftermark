@@ -15,12 +15,13 @@ export async function evaluationRoutes(app:FastifyInstance) {
     const {id}=z.object({id:z.string().min(1).max(128)}).parse(request.params);
     const body=z.object({projectId:z.uuid(),policyId:z.uuid().optional()}).parse(request.body);
     const a=await authorize(request,{scope:'evaluate',roles:['owner','admin','member'],projectId:body.projectId});
-    return tenant(a.organizationId,a.userId,async tx=>{
+    const accepted=await tenant(a.organizationId,a.userId,async tx=>{
       const [run]=await rows<any>(tx,sql`select * from runs where project_id=${body.projectId} and id=${id}`);assert(run,404,'not_found','Run not found.');assert(!run.expired_at,410,'data_expired','Run content has expired.');
       if(body.policyId)assert((await rows(tx,sql`select id from policies where project_id=${body.projectId} and id=${body.policyId}`)).length,404,'policy_not_found','Policy not found.');
       const jobId=await enqueue(tx,{organizationId:a.organizationId,projectId:body.projectId,runId:id,revision:run.revision,policyId:body.policyId,explicit:true},0);
-      return reply.code(202).send({jobId,revision:run.revision,processing:'pending'});
+      return {jobId,revision:run.revision,processing:'pending'};
     });
+    return reply.code(202).send(accepted);
   });
   app.post('/v1/evaluations/:id/replay',async request=>{
     const {id}=z.object({id:z.uuid()}).parse(request.params);const {projectId}=z.object({projectId:z.uuid()}).parse(request.body);

@@ -7,19 +7,31 @@ export class RequestError extends Error {
     super(message);
   }
 }
+let refreshing: Promise<boolean> | undefined;
 export async function api<T = any>(
   path: string,
   workspaceId?: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, {
+  const requestOptions: RequestInit = {
     ...options,
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
       ...options.headers,
     },
-  });
+  };
+  let response = await fetch(`/api/v1${path}`, requestOptions);
+  if (response.status === 401 && !path.startsWith("/auth/")) {
+    refreshing ??= fetch("/api/v1/auth/refresh", { method: "POST" })
+      .then((r) => r.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshing = undefined;
+      });
+    if (await refreshing)
+      response = await fetch(`/api/v1${path}`, requestOptions);
+  }
   let body: any;
   try {
     body = await response.json();
@@ -36,7 +48,7 @@ export async function api<T = any>(
       typeof window !== "undefined" &&
       !path.startsWith("/auth/")
     )
-      location.href = "/login";
+      location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
     throw new RequestError(
       body.error?.message ?? "The request failed.",
       response.status,

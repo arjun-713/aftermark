@@ -4,6 +4,7 @@ import { gzipSync } from 'node:zlib';
 import { buildServer } from '../../apps/api/src/server.ts';
 import { pool,tenant,rows,sql } from '@agent-quality/db';
 import { queue,queueName } from '../../packages/db/src/queue.ts';
+import { eventSchema } from '@agent-quality/contracts';
 let app=await buildServer();
 const org='10000000-0000-4000-8000-000000000001',project='20000000-0000-4000-8000-000000000001';
 let key='',keyId='',cookie='';const runId=`ingestion-${randomUUID()}`;
@@ -35,6 +36,13 @@ it('bounds decompressed gzip payloads',async()=>{
   const large=gzipSync(JSON.stringify({projectId:project,events:[event('large','message',{text:'x'.repeat(1100000)})]}));
   const response=await app.inject({method:'POST',url:'/v1/events',headers:{authorization:`Bearer ${key}`,'content-type':'application/json','content-encoding':'gzip'},payload:large});expect(response.statusCode).toBe(413);
 });
+it('preserves structural identifiers while redacting only the payload',async()=>{
+  const structural={...event(`aq_event_${randomUUID().replaceAll('-','')}`,'run.started',{agent:'Identifier test',text:'private@example.test'}),runId:`aq_run_${randomUUID().replaceAll('-','')}`,spanId:'aq_span_abcdefghijklmnopqrstuv'};
+  expect((await post([structural])).statusCode).toBe(202);
+  const [stored]=await tenant(org,null,tx=>rows<any>(tx,sql`select event from events where project_id=${project} and event_id=${structural.eventId}`));
+  expect(eventSchema.safeParse(stored.event).success).toBe(true);expect(stored.event.eventId).toBe(structural.eventId);expect(stored.event.runId).toBe(structural.runId);expect(stored.event.spanId).toBe(structural.spanId);expect(stored.event.payload.text).not.toContain('private@example.test');
+});
+it('does not expose workspace billing through a project read key',async()=>{expect((await app.inject({url:'/v1/usage',headers:{authorization:`Bearer ${key}`}})).statusCode).toBe(403);});
 it('accepts valid gzip, rejects forged organization identity and revoked keys',async()=>{
   const zipped=gzipSync(JSON.stringify({projectId:project,events:[event(`${runId}-late`)]}));
   expect((await app.inject({method:'POST',url:'/v1/events',headers:{authorization:`Bearer ${key}`,'content-type':'application/json','content-encoding':'gzip'},payload:zipped})).statusCode).toBe(202);

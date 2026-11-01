@@ -47,9 +47,9 @@ export async function managementRoutes(app:FastifyInstance) {
     return tenant(a.organizationId,a.userId,async tx=>{const changed=await rows(tx,sql`update api_keys set revoked_at=now() where id=${id} and revoked_at is null returning id`); assert(changed.length,404,'not_found','Active key not found.'); await audit(tx,a.organizationId,a.userId,'key.revoked',id);return {ok:true};});
   });
   app.get('/v1/usage',async request=>{
-    const a=await authorize(request,{scope:'read'});
+    const a=await authorize(request,{sessionOnly:true});
     return tenant(a.organizationId,a.userId,async tx=>{
-      const [subscription]=await rows<any>(tx,sql`select plan,status,allowance,period_start,period_end,provider_id,customer_id from subscriptions`);
+      const [subscription]=await rows<any>(tx,sql`select plan,status,allowance,period_start,period_end from subscriptions`);
       const [usage]=await rows<any>(tx,sql`select coalesce(sum(units) filter(where state='consumed'),0)::int as consumed,coalesce(sum(units) filter(where state in('reserved','ambiguous')),0)::int as reserved,coalesce(sum(tokens),0)::int as tokens from usage_ledger where created_at >= ${subscription.period_start}`);
       return {subscription,...usage,remaining:Math.max(0,subscription.allowance-usage.consumed-usage.reserved)};
     });

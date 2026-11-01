@@ -7,3 +7,5 @@ export const config = z.object({
   SESSION_SECRET:z.string().min(32).default('local-only-change-this-secret-at-least-32-characters')
 }).parse(process.env);
 if(config.NODE_ENV === 'production' && (config.AUTH_MODE !== 'supabase' || config.SESSION_SECRET.startsWith('local-only'))) throw new Error('Production requires Supabase authentication and a private session secret');
+if(config.AUTH_MODE==='supabase'&&(!process.env.SUPABASE_URL||!process.env.SUPABASE_ANON_KEY))throw new Error('Supabase authentication requires its URL and public anon key');
+if(config.NODE_ENV==='production'&&process.env.SUPABASE_URL&&!process.env.SUPABASE_URL.startsWith('https://'))throw new Error('Production authentication requires HTTPS');

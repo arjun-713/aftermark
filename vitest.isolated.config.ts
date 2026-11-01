@@ -6,7 +6,7 @@ if (!suite || !["regression", "commerce", "operations"].includes(suite))
   );
 export default defineConfig({
   test: {
-    include: [`tests/integration/${suite}.test.ts`],
+    include: [`tests/integration/${suite==='commerce'?'billing':suite}.test.ts`],
     fileParallelism: false,
     testTimeout: 30000,
     hookTimeout: 30000,
