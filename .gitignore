@@ -1,0 +1,15 @@
+node_modules/
+.next/
+dist/
+.env
+.env.*.local
+coverage/
+test-results/
+playwright-report/
+.local/
+__pycache__/
+*.egg-info/
+.venv/
+.codebase-memory/
+*.tsbuildinfo
+.taste-skill/
