@@ -51,7 +51,7 @@ export async function archiveRun(org: string, project: string, run: string, stor
   return tenant(org, null, async tx => {
     const record = await withRunLock(tx, org, project, run);
     if (!record || record.expired_at || record.content_archived_at || !record.completed_at) { await tx.execute(sql`delete from operations_object_cleanup where id=${cleanupId}`); return false; }
-    const expires = new Date(new Date(record.started_at).getTime() + record.retention_days * 86400000);
+    const expires = new Date(new Date(record.first_ingested_at).getTime() + record.retention_days * 86400000);
     if (expires.getTime() <= Date.now()) { await tx.execute(sql`delete from operations_object_cleanup where id=${cleanupId}`); return false; }
     const bytes = Buffer.from(JSON.stringify(await runDocument(tx, project, run)));
     const hash = await putVerified(store, path, bytes);
@@ -81,12 +81,12 @@ export async function enqueueArchiveCleanup(tx: Tx, org: string, project?: strin
 export async function expireRun(org: string, project: string, run: string) {
   return tenant(org, null, async tx => {
     const record = await withRunLock(tx, org, project, run); if (!record) return false;
-    if (new Date(record.started_at).getTime() > Date.now() - record.retention_days * 86400000) return false;
+    if (new Date(record.first_ingested_at).getTime() > Date.now() - record.retention_days * 86400000) return false;
     const [evaluation] = await rows<any>(tx, sql`select processing,assessment->>'decision' as decision from evaluations where project_id=${project} and id=${record.latest_evaluation_id}`);
     const decision = ['pass','fail','review','unknown','pending'].includes(evaluation?.decision) ? evaluation.decision : 'pending';
     const processing = ['pending','processing','completed','error','partial'].includes(evaluation?.processing) ? evaluation.processing : 'unknown';
     const execution = ['running','completed','failed','cancelled'].includes(record.execution_status) ? record.execution_status : 'unknown';
-    await tx.execute(sql`insert into operations_daily_metrics(organization_id,project_id,day,decision,processing,execution,count) values(${org},${project},${record.started_at}::timestamptz::date,${decision},${processing},${execution},1) on conflict(organization_id,project_id,day,decision,processing,execution) do update set count=operations_daily_metrics.count+1`);
+    await tx.execute(sql`insert into operations_daily_metrics(organization_id,project_id,day,decision,processing,execution,count) values(${org},${project},${record.first_ingested_at}::timestamptz::date,${decision},${processing},${execution},1) on conflict(organization_id,project_id,day,decision,processing,execution) do update set count=operations_daily_metrics.count+1`);
     await enqueueArchiveCleanup(tx, org, project, run);
     await tx.execute(sql`delete from pgboss.job where data->>'organizationId'=${org} and data->>'projectId'=${project} and data->>'runId'=${run}`);
     // Curated dataset copies are intentionally retained until explicit deletion.
@@ -96,9 +96,9 @@ export async function expireRun(org: string, project: string, run: string) {
 }
 export async function maintainWorkspace(org: string, store?: PrivateObjectStore) {
   const cfg = operationsConfig(); let archived = 0, expired = 0;
-  const candidates = await tenant(org, null, tx => rows<any>(tx, sql`select r.project_id,r.id,r.started_at,o.retention_days from runs r join organizations o on o.id=r.organization_id where (r.started_at<now()-make_interval(days=>o.retention_days) or (r.content_archived_at is null and r.completed_at is not null and r.last_event_at<now()-interval '24 hours' and r.started_at<now()-make_interval(days=>${cfg.ARCHIVE_AFTER_DAYS}))) order by r.started_at limit ${cfg.OPERATIONS_BATCH_SIZE}`));
+  const candidates = await tenant(org, null, tx => rows<any>(tx, sql`select r.project_id,r.id,r.first_ingested_at,o.retention_days from runs r join organizations o on o.id=r.organization_id where (r.first_ingested_at<now()-make_interval(days=>o.retention_days) or (r.content_archived_at is null and r.completed_at is not null and r.last_event_at<now()-interval '24 hours' and r.first_ingested_at<now()-make_interval(days=>${cfg.ARCHIVE_AFTER_DAYS}))) order by r.first_ingested_at limit ${cfg.OPERATIONS_BATCH_SIZE}`));
   for (const run of candidates) {
-    if (new Date(run.started_at).getTime() <= Date.now() - run.retention_days * 86400000) expired += Number(await expireRun(org, run.project_id, run.id));
+    if (new Date(run.first_ingested_at).getTime() <= Date.now() - run.retention_days * 86400000) expired += Number(await expireRun(org, run.project_id, run.id));
     else if (store) archived += Number(await archiveRun(org, run.project_id, run.id, store));
   }
   await tenant(org, null, async tx => {

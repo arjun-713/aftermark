@@ -57,7 +57,7 @@ export async function operationsRoutes(app: FastifyInstance, options: { store?: 
       const run = await withRunLock(tx, a.organizationId, projectId, id); assert(run, 404, 'not_found', 'Run is absent or expired.');
       const bytes = Buffer.from(JSON.stringify(await loadRunContent(tx, projectId, id, store)));
       const hash = await putVerified(store, path, bytes);
-      const expires = new Date(Math.min(Date.now() + 3600000, new Date(run.started_at).getTime() + run.retention_days * 86400000));
+      const expires = new Date(Math.min(Date.now() + 3600000, new Date(run.first_ingested_at).getTime() + run.retention_days * 86400000));
       assert(expires.getTime() > Date.now(), 410, 'data_expired', 'Detailed run content has expired.');
       const [archive] = await rows<any>(tx, sql`insert into archives(organization_id,project_id,run_id,object_path,checksum,purpose,expires_at,bytes) values(${a.organizationId},${projectId},${id},${path},${hash},'export',${expires.toISOString()},${bytes.length}) returning id,checksum,expires_at`);
       await tx.execute(sql`delete from operations_object_cleanup where id=${cleanup}`);

@@ -48,7 +48,7 @@ export async function restoreBackup() {
     const storage = process.env.SUPABASE_SERVICE_ROLE_KEY ? new SupabasePrivateStore() : undefined;
     const deletion = await reapplyDeletionJournal(records, storage);
     // A seven-day-old backup cannot extend the thirty-day detailed retention clock.
-    const expired = (await admin.query('select r.organization_id,r.project_id,r.id from runs r join organizations o on o.id=r.organization_id where r.started_at<now()-make_interval(days=>o.retention_days)')).rows;
+    const expired = (await admin.query('select r.organization_id,r.project_id,r.id from runs r join organizations o on o.id=r.organization_id where r.first_ingested_at<now()-make_interval(days=>o.retention_days)')).rows;
     for (const run of expired) await expireRun(run.organization_id, run.project_id, run.id);
     for (const { organization_id: org } of (await admin.query('select distinct organization_id from archives where expires_at<=now()')).rows) await tenant(org, null, async tx => {
       await tx.execute(sql`insert into operations_object_cleanup(organization_id,object_path) select organization_id,object_path from archives where expires_at<=now()`);
