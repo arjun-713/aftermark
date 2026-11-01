@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
+    "test:python": "PYTHONPATH=sdk/python/src python3 -m unittest discover -s tests/python -v",
     "build": "npm run build -w @agent-quality/web",
     "aq": "tsx packages/cli/src/index.ts",
     "check:release": "tsx scripts/release-gates.ts"

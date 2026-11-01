@@ -8,9 +8,11 @@ import { pool } from '@agent-quality/db';
 import { ApiError } from './errors.ts';
 import { authRoutes } from './auth.ts';
 import { managementRoutes } from './management.ts';
+import { ingestionRoutes } from './ingestion.ts';
+import { runRoutes } from './runs.ts';
 
 export async function buildServer() {
-  const app=Fastify({bodyLimit:1048576,disableRequestLogging:true,logger:config.NODE_ENV!=='test'?{level:'info',redact:['req.headers.authorization','req.headers.cookie','req.body','res.headers.set-cookie']}:false,trustProxy:false});
+  const app=Fastify({bodyLimit:1048576,ajv:{customOptions:{removeAdditional:false,coerceTypes:false}},disableRequestLogging:true,logger:config.NODE_ENV!=='test'?{level:'info',redact:['req.headers.authorization','req.headers.cookie','req.body','res.headers.set-cookie']}:false,trustProxy:false});
   await app.register(cookie);
   await app.register(rateLimit,{max:600,timeWindow:'1 minute'});
   await app.register(swagger,{openapi:{info:{title:'Agent Quality API',version:'1.0.0'},components:{securitySchemes:{apiKey:{type:'http',scheme:'bearer'}}}}});
@@ -27,6 +29,6 @@ export async function buildServer() {
   });
   app.get('/health',async()=>({status:'ok'}));
   app.get('/ready',async(_request,reply)=>{try{await pool.query('select 1'); return {status:'ready'};}catch{return reply.code(503).send({status:'unavailable'});}});
-  await authRoutes(app); await managementRoutes(app);
+  await authRoutes(app); await managementRoutes(app);await ingestionRoutes(app);await runRoutes(app);
   return app;
 }

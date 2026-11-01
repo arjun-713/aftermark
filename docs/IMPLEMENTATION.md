@@ -5,7 +5,7 @@ The release plan is the product contract. A local capability and a production re
 ## Phase checkpoints
 
 1. Foundation: Next.js/Fastify monorepo, runtime contracts, SQL migrations, Supabase authentication adapter, isolated local identities, scoped key management, RLS. Local gate passed: 4 contract tests, 5 authenticated API/database isolation tests, TypeScript check, production Next.js build, and Playwright login-to-workspace smoke. Dependency audit: zero findings after removing the vulnerable static documentation dependency. Supabase live authentication remains a deployment gate.
-2. Ingestion: pending.
+2. Ingestion: native atomic API, gzip limits, Drizzle/pg-boss transactional job creation, revisioned run search/detail, pinned OTLP HTTP JSON mapping, bounded TypeScript/Python SDKs and integration examples. Local gate passed: duplicate idempotency, conflict rollback, redaction, API/queue restart recovery, decompression limits, revoked keys, scoped identity; SDK delivery/failure-isolation tests in both languages. Worker crash/retry behavior is exercised with the evaluation worker in phase 3. Live framework/provider compatibility is not asserted by these examples.
 3. Evaluation: pending.
 4. Verification: pending.
 5. Review product: pending.

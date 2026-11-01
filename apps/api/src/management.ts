@@ -37,7 +37,7 @@ export async function managementRoutes(app:FastifyInstance) {
     assert(!(body.scopes.includes('verifier') && body.scopes.length>1),400,'separate_verifier_key','Verifier credentials must have only the verifier scope.');
     const key=`aq_${randomBytes(32).toString('base64url')}`;
     return tenant(a.organizationId,a.userId,async tx=>{
-      const [record]=await rows(tx,sql`insert into api_keys(organization_id,project_id,name,prefix,secret_hash,scopes) values(${a.organizationId},${body.projectId},${body.name},${key.slice(0,11)},${digest(key)},${body.scopes}) returning id,name,prefix,scopes`);
+      const [record]=await rows(tx,sql`insert into api_keys(organization_id,project_id,name,prefix,secret_hash,scopes) values(${a.organizationId},${body.projectId},${body.name},${key.slice(0,11)},${digest(key)},ARRAY[${sql.join(body.scopes.map(s=>sql`${s}`),sql`, `)}]::text[]) returning id,name,prefix,scopes`);
       await audit(tx,a.organizationId,a.userId,'key.created',String(record.id)); return {...record,secret:key};
     });
   });

@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { Pool } from 'pg';
 import { readdir, readFile } from 'node:fs/promises';
+import { PgBoss } from 'pg-boss';
+import { config } from './config.ts';
 const migrationUrl = process.env.MIGRATION_DATABASE_URL;
 if(!migrationUrl) throw new Error('Set MIGRATION_DATABASE_URL to a migration-only credential');
 const admin = new Pool({ connectionString: migrationUrl, max:1 });
@@ -19,3 +21,6 @@ try {
     } catch(error) { await connection.query('rollback'); throw error; }
   }
 } finally { await connection.query('select pg_advisory_unlock(103242100)'); connection.release(); await admin.end(); }
+const boss=new PgBoss({connectionString:config.DATABASE_URL,schema:'pgboss',createSchema:false});
+boss.on('error',()=>process.stderr.write('Queue migration error\n'));
+try{await boss.start();console.log('Durable queue schema ready');}finally{await boss.stop();}
