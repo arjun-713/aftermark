@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "region": "ap-southeast-1",
+  "monthlyBudgetUsd": 150,
+  "spendAlertUsd": 120,
+  "capacityAbove150RequiresExplicitApproval": true,
+  "alerts": [
+    { "signal": "api.ready", "condition": "three consecutive failures", "severity": "page" },
+    { "signal": "worker.ready", "condition": "no healthy worker for 2 minutes", "severity": "page" },
+    { "signal": "queue.oldest_pending_seconds", "threshold": 90, "severity": "page" },
+    { "signal": "queue.dead_letter_count", "threshold": 1, "severity": "page" },
+    { "signal": "maintenance.last_success_age_seconds", "threshold": 300, "severity": "page" },
+    { "signal": "backup.last_verified_age_seconds", "threshold": 21600, "severity": "page" },
+    { "signal": "database.storage_used_percent", "threshold": 75, "severity": "warning" },
+    { "signal": "database.connections_used_percent", "threshold": 75, "severity": "warning" },
+    { "signal": "projected_monthly_spend_usd", "threshold": 120, "severity": "page" }
+  ],
+  "logAllowlist": ["timestamp", "service", "requestId", "code", "status", "durationMs", "count", "queueName"],
+  "deploymentState": "pending-external-monitor-configuration"
+}

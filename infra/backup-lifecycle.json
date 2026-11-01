@@ -1,0 +1,7 @@
+{
+  "Rules": [{
+    "ID": "encrypted-database-backups-seven-days", "Status": "Enabled", "Filter": { "Prefix": "backups/" },
+    "Expiration": { "Days": 7 }, "NoncurrentVersionExpiration": { "NoncurrentDays": 7 },
+    "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 }
+  }]
+}

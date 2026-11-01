@@ -1,0 +1,111 @@
+# REVIEW TEMPLATE. Applying this Blueprint creates billable resources; no deployment has been performed.
+# Migrate in a separately credentialed release job before promoting any of these services.
+services:
+  - type: web
+    name: agent-quality-web
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    healthCheckPath: /
+    envVars:
+      - key: SERVICE_ROLE
+        value: web
+      - key: API_ORIGIN
+        sync: false
+      - key: PORT
+        value: '10000'
+  - type: web
+    name: agent-quality-api
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    numInstances: 2
+    autoDeployTrigger: 'off'
+    healthCheckPath: /ready
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - fromGroup: agent-quality-server
+      - key: SERVICE_ROLE
+        value: api
+      - key: PORT
+        value: '10000'
+  - type: worker
+    name: agent-quality-worker
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - fromGroup: agent-quality-server
+      - key: SERVICE_ROLE
+        value: worker
+      - key: PORT
+        value: '10000'
+  - type: cron
+    name: agent-quality-backup
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    schedule: '0 */6 * * *'
+    autoDeployTrigger: 'off'
+    envVars:
+      - fromGroup: agent-quality-backup
+      - key: SERVICE_ROLE
+        value: backup
+envVarGroups:
+  - name: agent-quality-server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AUTH_MODE
+        value: supabase
+      - key: SEMANTIC_EVALUATIONS_ENABLED
+        value: 'false'
+      - key: AWS_REGION
+        value: ap-southeast-1
+      - key: MONTHLY_BUDGET_USD
+        value: '150'
+      - key: BUDGET_ALERT_USD
+        value: '120'
+      - key: CAPACITY_OVER_150_APPROVED
+        value: 'false'
+      - key: ARCHIVE_BUCKET
+        value: agent-quality-private
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_ORIGIN
+        sync: false
+      - key: API_ORIGIN
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: KMS_KEY_ID
+        sync: false
+      - key: DELETION_JOURNAL_BUCKET
+        sync: false
+      - key: DELETION_JOURNAL_HMAC_KEY
+        sync: false
+      - key: BACKUP_KMS_KEY_ID
+        sync: false
+  - name: agent-quality-backup
+    envVars:
+      - key: BACKUP_REGION
+        value: ap-southeast-1
+      - key: BACKUP_DATABASE_URL
+        sync: false
+      - key: BACKUP_BUCKET
+        sync: false
+      - key: BACKUP_KMS_KEY_ID
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
