@@ -1,0 +1,49 @@
+# Copy into your agent repository after installing a pinned @agent-quality/cli version.
+# Your own CI step must run the agent against test resources, submit traces via the SDK,
+# and produce candidate-runs.json. Agent Quality does not execute customer agent code.
+name: Agent regression quality
+on:
+  workflow_dispatch:
+    inputs:
+      dataset_id:
+        description: Immutable reviewed regression dataset UUID
+        required: true
+      policy_id:
+        description: Immutable evaluator policy UUID
+        required: true
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AQ_ENDPOINT: ${{ vars.AQ_ENDPOINT }}
+      AQ_PROJECT_ID: ${{ vars.AQ_PROJECT_ID }}
+      AQ_API_KEY: ${{ secrets.AQ_CI_API_KEY }}
+      AQ_DATASET_ID: ${{ inputs.dataset_id }}
+      AQ_POLICY_ID: ${{ inputs.policy_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Add the customer-owned runner here, or download its mapping artifact first.
+      # It must submit test/staging traces and write the exact dataset case coverage.
+      - name: Compare candidate quality
+        run: >-
+          npx --no-install aq compare
+          --dataset "$AQ_DATASET_ID"
+          --policy "$AQ_POLICY_ID"
+          --candidate candidate=candidate-runs.json
+          --wait --timeout 120
+          --format junit --output comparison.xml
+      - name: Upload quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-quality-report
+          path: comparison.xml
+          if-no-files-found: warn
