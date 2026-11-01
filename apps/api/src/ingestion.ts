@@ -29,7 +29,7 @@ export async function ingest(a:Identity,projectId:string,events:AgentEvent[]) {
           const [existing]=await rows<any>(tx,sql`select hash,run_id from event_keys where project_id=${projectId} and event_id=${event.eventId}`);
           assert(existing.hash===hash && existing.run_id===runId,409,'event_conflict','An event ID was reused with different contents. The batch was rolled back.');duplicates++;continue;
         }
-        await tx.execute(sql`insert into events(organization_id,project_id,event_id,run_id,event) values(${a.organizationId},${projectId},${event.eventId},${runId},${JSON.stringify(redact(event))}::jsonb)`);added++;accepted++;
+        await tx.execute(sql`insert into events(organization_id,project_id,event_id,run_id,event) values(${a.organizationId},${projectId},${event.eventId},${runId},${JSON.stringify(redact({...event,timestamp:new Date(event.timestamp).toISOString()}))}::jsonb)`);added++;accepted++;
       }
       if(!added)continue;
       const all=(await rows<any>(tx,sql`select event from events where project_id=${projectId} and run_id=${runId} order by event->>'timestamp',event_id`)).map(r=>r.event as AgentEvent);

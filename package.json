@@ -25,6 +25,7 @@
     "build": "npm run build -w @agent-quality/web",
     "aq": "tsx packages/cli/src/index.ts",
     "check:release": "tsx scripts/release-gates.ts"
+    ,"calibrate": "tsx scripts/calibration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1161.0",

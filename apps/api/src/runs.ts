@@ -13,7 +13,7 @@ export async function runRoutes(app:FastifyInstance) {
       const list=await rows<any>(tx,sql`select r.*,e.processing,e.assessment->>'decision' as decision,e.assessment->'outcomes' as outcomes,e.assessment->'findings' as findings,e.revision as evaluated_revision from runs r left join evaluations e on e.organization_id=r.organization_id and e.project_id=r.project_id and e.id=r.latest_evaluation_id where ${filters} and (${cursor?.time??null}::timestamptz is null or (r.started_at,r.id)<(${cursor?.time??null}::timestamptz,${cursor?.id??''})) order by r.started_at desc,r.id desc limit ${q.limit+1}`);
       const [{count}]=await rows<any>(tx,sql`select count(*)::int as count from runs r left join evaluations e on e.organization_id=r.organization_id and e.project_id=r.project_id and e.id=r.latest_evaluation_id where ${filters}`);
       const hasMore=list.length>q.limit;const items=list.slice(0,q.limit);const last=items.at(-1);
-      return {items,total:count,nextCursor:hasMore?Buffer.from(JSON.stringify({time:last.started_at.toISOString(),id:last.id})).toString('base64url'):null};
+      return {items,total:count,nextCursor:hasMore?Buffer.from(JSON.stringify({time:new Date(last.started_at).toISOString(),id:last.id})).toString('base64url'):null};
     });
   });
   app.get('/v1/runs/:id',async request=>{

@@ -16,5 +16,5 @@ export async function queue():Promise<PgBoss> {
 }
 export async function stopQueue(){if(started){const boss=await started;started=undefined;await boss.stop({graceful:true,timeout:10000});}}
 export async function enqueue(tx:Tx,job:RunJob,delaySeconds=30) {
-  return (await queue()).send(queueName,job,{db:fromDrizzle(tx,sql),startAfter:delaySeconds,singletonKey:`${job.organizationId}:${job.projectId}:${job.runId}:${job.revision}:${job.policyId??'active'}`,group:{id:job.organizationId}});
+  return (await queue()).send(queueName,job,{db:fromDrizzle(tx,sql),startAfter:delaySeconds,singletonKey:`${job.organizationId}:${job.projectId}:${job.runId}:${job.revision}:${job.policyId??'active'}:${job.explicit?'explicit':'auto'}`,group:{id:job.organizationId}});
 }
