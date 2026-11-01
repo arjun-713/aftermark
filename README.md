@@ -21,6 +21,7 @@ Open http://localhost:3000. Seed credentials are development-only: `alex@example
 ```sh
 npm run typecheck
 npm run test:integration
+npm run test:regression # separate disposable local database
 npm run test:e2e # builds must be current; uses local Chrome by default
 ```
 

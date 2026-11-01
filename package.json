@@ -21,9 +21,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:regression": "tsx scripts/test-isolated.ts regression",
+    "test:commerce": "tsx scripts/test-isolated.ts commerce",
+    "test:operations": "tsx scripts/test-isolated.ts operations",
     "test:e2e": "playwright test",
     "test:python": "PYTHONPATH=sdk/python/src python3 -m unittest discover -s tests/python -v",
-    "build": "npm run build -w @agent-quality/web",
+    "build": "npm run build -w @agent-quality/web && npm run build -w @agent-quality/cli && npm run build -w @agent-quality/sdk",
     "aq": "tsx packages/cli/src/index.ts",
     "check:release": "tsx scripts/release-gates.ts",
     "calibrate": "tsx scripts/calibration.ts"

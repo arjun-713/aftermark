@@ -123,7 +123,7 @@ async function seedRun(page: Page) {
 }
 test("onboard, inspect linked evidence, and record a review without database access", async ({
   page,
-}) => {
+},testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/login");
@@ -172,6 +172,56 @@ test("onboard, inspect linked evidence, and record a review without database acc
   await expect(
     page.getByRole("status").filter({ hasText: "Review decision recorded." }),
   ).toBeVisible();
+  await page.goto(`/app/datasets?review=${fixture.reviewId}`);
+  const datasetName = `Browser regression ${fixture.runId}`;
+  const publishDialog = page.getByRole("dialog", {
+    name: "Publish reviewed case",
+  });
+  await expect(publishDialog).toBeVisible();
+  await publishDialog
+    .getByLabel("Dataset name", { exact: true })
+    .fill(datasetName);
+  await publishDialog
+    .getByLabel("Case ID (optional)", { exact: true })
+    .fill("issue-state");
+  await publishDialog
+    .getByLabel("Expected behavior description", { exact: true })
+    .fill(
+      "Create the requested issue in the open state with signed independent verification.",
+    );
+  await publishDialog
+    .getByRole("button", { name: "Publish immutable version", exact: true })
+    .click();
+  await expect(
+    page.locator('section[aria-label="Published dataset version"]'),
+  ).toBeVisible();
+  const datasets = await (
+    await page.request.get(
+      `/api/v1/datasets?projectId=${project}&kind=agent_regression`,
+      { headers: { "x-workspace-id": org } },
+    )
+  ).json();
+  const dataset = datasets.find((d: any) => d.name === datasetName);
+  expect(dataset).toBeTruthy();
+  await page.goto(`/app/experiments?dataset=${dataset.id}`);
+  const compare = page.getByRole("dialog", { name: "Compare candidate runs" });
+  await expect(compare).toBeVisible();
+  await compare
+    .getByLabel("Experiment name", { exact: true })
+    .fill(`Comparison ${fixture.runId}`);
+  await compare
+    .getByLabel("Run for issue-state", { exact: true })
+    .fill(fixture.runId);
+  await compare
+    .getByRole("button", { name: "Create pinned comparison", exact: true })
+    .click();
+  const report = page.locator('section[aria-label="Comparison report"]');
+  await expect(report).toBeVisible();
+  await expect(
+    report.getByText("failed", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(report).toContainText("Exit code: 1");
+  await page.screenshot({path:testInfo.outputPath('regression-report.png'),fullPage:true});
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > innerWidth,

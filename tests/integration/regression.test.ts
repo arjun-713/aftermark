@@ -14,7 +14,7 @@ import type { Dataset } from '../../packages/regression/src/index.ts';
 import { runCli } from '../../packages/cli/src/cli.ts';
 
 const org = '10000000-0000-4000-8000-000000000001', project = '20000000-0000-4000-8000-000000000001', user = '00000000-0000-4000-8000-000000000001';
-const app = await buildServer(); await regressionRoutes(app);
+const app = await buildServer(); if(!app.hasRoute({method:'GET',url:'/v1/datasets'}))await regressionRoutes(app);
 let headers: Record<string, string>, ciHeaders: Record<string, string>, selectedPolicy: any;
 let source: { reviewId: string; runId: string; evaluationId: string }, dataset: Dataset, candidate: string;
 const expectation = { kind: 'completion', description: 'Create a verified support issue.', executionStatuses: ['completed'], messageIncludes: [], outcomes: [] };

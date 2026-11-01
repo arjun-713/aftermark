@@ -10,6 +10,7 @@ import {
   Settings,
   PendingScreen,
 } from "../../../components/screens";
+import { Datasets, Experiments } from "../../../components/regression-screens";
 export default function Page() {
   const path = usePathname().split("/").slice(2);
   if (path[0] === "runs" && path[1])
@@ -28,9 +29,9 @@ export default function Page() {
     case "settings":
       return <Settings />;
     case "datasets":
-      return <PendingScreen kind="datasets" />;
+      return <Datasets />;
     case "experiments":
-      return <PendingScreen kind="experiments" />;
+      return <Experiments />;
     default:
       return <PendingScreen kind="workspace" />;
   }

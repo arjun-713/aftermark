@@ -3,10 +3,26 @@
   "version": "0.1.0",
   "description": "Pin reviewed agent cases and assert regression quality in customer CI",
   "type": "module",
-  "bin": { "aq": "./dist/index.js" },
-  "files": ["dist", "README.md"],
-  "engines": { "node": ">=22.14 <25" },
-  "scripts": { "build": "node build.mjs", "prepack": "npm run build" },
-  "dependencies": { "commander": "14.0.3", "zod": "4.6.7" },
-  "devDependencies": { "esbuild": "0.28.2" }
+  "bin": {
+    "aq": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=22.14 <25"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "commander": "14.0.3",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
 }

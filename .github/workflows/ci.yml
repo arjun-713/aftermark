@@ -22,5 +22,6 @@ jobs:
       - run: npm test
       - run: npm run test:python
       - run: npm run test:integration
+      - run: npm run test:regression
       - run: npm run build
       - run: npm run test:e2e
