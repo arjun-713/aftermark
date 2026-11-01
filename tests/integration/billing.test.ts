@@ -65,7 +65,9 @@ async function ledger(state: 'reserved' | 'consumed' | 'ambiguous', units: numbe
 }
 beforeAll(async () => { await app.ready(); });
 beforeEach(async () => {
-  org = randomUUID(); otherOrg = randomUUID(); project = randomUUID(); policy = randomUUID(); ledgerRevision = 0;
+  // Keep A before B both in fixture insertion order and in the membership index.
+  // The regression must expose an unscoped lookup selecting A's owner role.
+  org = `30000000${randomUUID().slice(8)}`; otherOrg = `40000000${randomUUID().slice(8)}`; project = randomUUID(); policy = randomUUID(); ledgerRevision = 0;
   users = {} as typeof users;
   for (const role of ['owner', 'admin', 'member', 'viewer', 'invitee', 'outsider'] as const) {
     const id = randomUUID(), email = `${role}-${id}@example.test`;
@@ -258,5 +260,45 @@ describe('team roles, invitations and retention', () => {
     expect((await request('PATCH', '/v1/workspace/settings', { retentionDays: 7 })).json()).toMatchObject({ retentionDays: 7 });
     expect((await request('GET', '/v1/workspace/settings', undefined, 'viewer')).json().retentionDays).toBe(7);
     expect((await request('GET', '/v1/billing')).json().usage.consumed).toBe(5);
+  });
+});
+
+describe('multi-workspace membership isolation', () => {
+  it('does not promote an owner in A from admin to owner authority in B', async () => {
+    await admin.query("update subscriptions set plan='team',status='active',allowance=50000 where organization_id=$1", [otherOrg]);
+    await admin.query("insert into memberships values($1,$2,'admin'),($1,$3,'member')", [otherOrg, users.owner.id, users.member.id]);
+    const team = await request('GET', '/v1/team', undefined, 'owner', otherOrg);
+    const actions = await Promise.all([
+      request('PATCH', `/v1/team/members/${users.member.id}`, { role: 'owner' }, 'owner', otherOrg),
+      request('POST', '/v1/team/invitations', { email: users.invitee.email, role: 'admin' }, 'owner', otherOrg),
+      request('DELETE', `/v1/team/members/${users.outsider.id}`, undefined, 'owner', otherOrg),
+    ]);
+    expect(actions.map(action => action.statusCode)).toEqual([403, 403, 403]);
+    expect(team.json()).toMatchObject({ canManage: true, canAssignAdmin: false });
+    const roles = await admin.query('select organization_id,user_id,role from memberships where organization_id=any($1::uuid[])', [[org, otherOrg]]);
+    expect(roles.rows.find(row => row.organization_id === org && row.user_id === users.owner.id)?.role).toBe('owner');
+    expect(roles.rows.find(row => row.organization_id === otherOrg && row.user_id === users.owner.id)?.role).toBe('admin');
+    expect(roles.rows.find(row => row.organization_id === otherOrg && row.user_id === users.member.id)?.role).toBe('member');
+    expect(roles.rows.find(row => row.organization_id === otherOrg && row.user_id === users.outsider.id)?.role).toBe('owner');
+  });
+  it('reports only B permissions when an owner in A is a viewer in B', async () => {
+    await admin.query("insert into memberships values($1,$2,'viewer')", [otherOrg, users.owner.id]);
+    expect((await request('GET', '/v1/billing', undefined, 'owner', otherOrg)).json().canManage).toBe(false);
+    expect((await request('GET', '/v1/team', undefined, 'owner', otherOrg)).json()).toMatchObject({ canManage: false, canAssignAdmin: false, invitations: [] });
+  });
+  it('joins B at its last available seat even when the invited user already owns A', async () => {
+    await admin.query("insert into memberships values($1,$2,'member')", [otherOrg, users.member.id]);
+    const invitation = await request('POST', '/v1/team/invitations', { email: users.owner.email, role: 'viewer' }, 'outsider', otherOrg);
+    expect(invitation.statusCode).toBe(201);
+    const token = new URL(invitation.json().invitationUrl).searchParams.get('invitation')!;
+    const accept = () => app.inject({ method: 'POST', url: '/v1/team/invitations/accept', payload: { token }, headers: { cookie: users.owner.cookie } });
+    expect((await accept()).json()).toEqual({ organizationId: otherOrg, role: 'viewer', alreadyAccepted: false });
+    const memberships = (await admin.query('select organization_id,role from memberships where user_id=$1 order by organization_id', [users.owner.id])).rows;
+    expect(memberships).toEqual([{ organization_id: org, role: 'owner' }, { organization_id: otherOrg, role: 'viewer' }]);
+    expect((await admin.query('select count(*)::int as count from memberships where organization_id=$1', [otherOrg])).rows[0].count).toBe(3);
+    expect((await accept()).json()).toEqual({ organizationId: otherOrg, role: 'viewer', alreadyAccepted: true });
+    await admin.query('delete from memberships where organization_id=$1 and user_id=$2', [otherOrg, users.owner.id]);
+    expect((await accept()).statusCode).toBe(409);
+    expect((await admin.query('select role from memberships where organization_id=$1 and user_id=$2', [org, users.owner.id])).rows[0].role).toBe('owner');
   });
 });

@@ -13,7 +13,9 @@ export type CommerceOptions = { provider?: BillingProvider | null; webhookKey?: 
 
 async function actor(tx: Tx, identity: Identity, allowed?: Role[]) {
   const [subscription] = await rows<any>(tx, sql`select * from subscriptions where organization_id=${identity.organizationId} for update`);
-  const [membership] = await rows<{ role: Role }>(tx, sql`select role from memberships where user_id=${identity.userId}`);
+  // RLS also exposes the actor's memberships in other workspaces for navigation.
+  // Every authorization lookup must name the workspace as well as the user.
+  const [membership] = await rows<{ role: Role }>(tx, sql`select role from memberships where organization_id=${identity.organizationId} and user_id=${identity.userId}`);
   assert(membership, 403, 'forbidden', 'You no longer have access to this workspace.');
   assert(!allowed || allowed.includes(membership.role), 403, 'forbidden', 'Your workspace role does not allow this action.');
   assert(subscription, 404, 'not_found', 'Workspace subscription not found.');
@@ -144,14 +146,14 @@ export async function commerceRoutes(app: FastifyInstance, options: CommerceOpti
       const [invitation] = await rows<any>(tx, sql`select * from team_invitations where token_hash=${hash} for update`);
       const [user] = await rows<{ email: string }>(tx, sql`select email from users where id=${uid}`);
       assert(invitation && user && invitation.email.toLowerCase() === user.email.toLowerCase(), 404, 'invitation_unavailable', 'This invitation is unavailable.');
-      const [membership] = await rows<{ role: Role }>(tx, sql`select role from memberships where user_id=${uid}`);
+      const [membership] = await rows<{ role: Role }>(tx, sql`select role from memberships where organization_id=${org} and user_id=${uid}`);
       if (invitation.accepted_at) {
         assert(invitation.accepted_by === uid && membership, 409, 'invitation_used', 'This invitation was already used.');
         return { organizationId: org, role: membership.role, alreadyAccepted: true };
       }
       assert(!invitation.revoked_at && new Date(invitation.expires_at) > new Date(), 410, 'invitation_unavailable', 'This invitation has expired or was revoked.');
       if (!membership) {
-        const [{ count }] = await rows<{ count: number }>(tx, sql`select count(*)::int as count from memberships`);
+        const [{ count }] = await rows<{ count: number }>(tx, sql`select count(*)::int as count from memberships where organization_id=${org}`);
         assert(count < plans[subscription.plan as keyof typeof plans].members, 402, 'member_limit', 'The workspace member allowance is exhausted.');
         await tx.execute(sql`insert into memberships(organization_id,user_id,role) values(${org},${uid},${invitation.role})`);
       }
@@ -178,15 +180,15 @@ export async function commerceRoutes(app: FastifyInstance, options: CommerceOpti
   const changeMember = async (a: Identity, userId: string, newRole: Role | null) => tenant(a.organizationId, a.userId, async tx => {
     const { role } = await actor(tx, a, ['owner', 'admin']);
     assert(userId !== a.userId, 409, 'self_membership_change', 'Ask another owner or administrator to change your membership.');
-    const [member] = await rows<{ role: Role }>(tx, sql`select role from memberships where user_id=${userId} for update`);
+    const [member] = await rows<{ role: Role }>(tx, sql`select role from memberships where organization_id=${a.organizationId} and user_id=${userId} for update`);
     assert(member, 404, 'not_found', 'Workspace member not found.');
     assert(role === 'owner' || !['owner', 'admin'].includes(member.role) && (!newRole || ['member', 'viewer'].includes(newRole)), 403, 'forbidden', 'Only an owner can change an owner or administrator role.');
     if (member.role === 'owner' && newRole !== 'owner') {
-      const [{ count }] = await rows<{ count: number }>(tx, sql`select count(*)::int as count from memberships where role='owner'`);
+      const [{ count }] = await rows<{ count: number }>(tx, sql`select count(*)::int as count from memberships where organization_id=${a.organizationId} and role='owner'`);
       assert(count > 1, 409, 'last_owner', 'The workspace must keep at least one owner.');
     }
-    if (newRole) await tx.execute(sql`update memberships set role=${newRole} where user_id=${userId}`);
-    else await tx.execute(sql`delete from memberships where user_id=${userId}`);
+    if (newRole) await tx.execute(sql`update memberships set role=${newRole} where organization_id=${a.organizationId} and user_id=${userId}`);
+    else await tx.execute(sql`delete from memberships where organization_id=${a.organizationId} and user_id=${userId}`);
     await audit(tx, a, newRole ? 'team.role_changed' : 'team.member_removed', userId);
     return { ok: true };
   });
