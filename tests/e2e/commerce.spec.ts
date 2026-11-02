@@ -83,7 +83,12 @@ test("workspace owner manages an invitation and retention with real API state", 
   await expect(
     page.getByText("Billing disconnected", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("meter")).toBeVisible();
+  await expect(
+    page.getByRole("meter", { name: "Evaluation allowance used or held" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("meter", { name: "Retained-content storage used" }),
+  ).toBeVisible();
   await expect(page).not.toHaveURL(/subscription_id/);
   await page.screenshot({
     path: info.outputPath("billing.png"),
@@ -146,6 +151,42 @@ test("workspace owner manages an invitation and retention with real API state", 
   ).toBeVisible();
   await page.screenshot({
     path: info.outputPath("retention.png"),
+    fullPage: true,
+  });
+  await page.goto("/app/settings/alerts");
+  await expect(
+    page.getByRole("heading", { name: "Alerts", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Add destination", exact: true })
+    .click();
+  const destination = page.getByRole("dialog", {
+    name: "Add an alert destination",
+  });
+  await destination
+    .getByLabel("Name", { exact: true })
+    .fill("Private address rejection fixture");
+  await destination
+    .getByLabel("Public HTTPS endpoint", { exact: true })
+    .fill("https://127.0.0.1/receipt");
+  await destination
+    .getByRole("button", { name: "Enable destination", exact: true })
+    .click();
+  await expect(destination.getByRole("alert")).toContainText(
+    "public HTTPS hostname",
+  );
+  await destination
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await page.goto("/app/settings/operations");
+  await expect(
+    page.getByRole("heading", { name: "Processing health", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Queue state", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: info.outputPath("processing-health.png"),
     fullPage: true,
   });
   expect(

@@ -9,6 +9,11 @@ class Response:
     def __exit__(self, *args): pass
 
 class SDKTest(unittest.TestCase):
+    def test_large_non_email_redaction(self):
+        for value in ("x" * 900000, "x" * 900000 + " @ invalid"):
+            self.assertEqual(redact(value), value)
+        self.assertEqual(redact("Contact alice+support@example.test."), "Contact [REDACTED].")
+
     def test_redaction_and_context(self):
         events = []
         def send(req, timeout):

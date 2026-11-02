@@ -54,6 +54,8 @@ Both SDKs default to a 1,000-event buffer, 100-event batches and three bounded H
 
 The server accepts atomic batches up to 100 events and 1 MiB after gzip decompression. Identical event IDs are idempotent; different contents under an existing ID reject the whole batch with 409. `202` means events and a delayed processing job committed together. Events remain queryable while workers are unavailable. Do not interpret acknowledgement as completed evaluation.
 
+Launch resource limits are 2,000 events and 4 MiB of redacted event/evidence content per run. A batch that exceeds either bound receives `413 run_content_limit` and rolls back completely; earlier acknowledged events remain available. Split larger workflows into linked runs and capture only relevant properties. SDK delivery isolation does not make an oversized or incomplete run a pass. Curated dataset versions are bounded to 8 MiB; a comparison may load up to 16 MiB of frozen inputs. These memory bounds are independent of workspace retained-content quotas and the standard semantic request budget.
+
 ## OTLP/HTTP JSON mapping v1
 
 POST JSON to `/v1/traces` with `projectId` and OTLP `resourceSpans`. Protobuf is not supported by this importer. Each OTLP span produces a start and end event; 50 spans fit the 100-event limit. Trace IDs are 32-character hex and span IDs are 16-character hex. `service.name`, `service.version`, `deployment.environment.name`, `output.value` and `gen_ai.output.messages` are the pinned attributes. Root span status maps to execution status, never to quality. Expected outcomes must come from customer configuration. Unsupported OTLP representations are rejected, not silently guessed.

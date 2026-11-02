@@ -29,7 +29,15 @@
     "build": "npm run build -w @agent-quality/web && npm run build -w @agent-quality/cli && npm run build -w @agent-quality/sdk",
     "aq": "tsx packages/cli/src/index.ts",
     "check:release": "tsx scripts/release-gates.ts",
-    "calibrate": "tsx scripts/calibration.ts"
+    "calibrate": "tsx scripts/calibration.ts",
+    "test:identity": "tsx scripts/test-isolated.ts identity",
+    "test:alerts": "tsx scripts/test-isolated.ts alerts",
+    "test:storage": "tsx scripts/test-isolated.ts storage",
+    "build:services": "node scripts/build-services.mjs",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts",
+    "test:load": "tsx scripts/load.ts",
+    "test:storage-operations": "tsx scripts/test-isolated.ts storage_ops"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1161.0",

@@ -24,5 +24,11 @@ jobs:
       - run: npm run test:integration
       - run: npm run test:regression
       - run: npm run test:commerce
+      - run: npm run test:identity
+      - run: npm run test:operations
+      - run: npm run test:alerts
+      - run: npm run test:storage
+      - run: npm run test:storage-operations
+      - run: npm run build:services
       - run: npm run build
       - run: npm run test:e2e

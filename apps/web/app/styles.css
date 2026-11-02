@@ -3372,3 +3372,10 @@ kbd {
     margin-bottom: 45px;
   }
 }
+.inline-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.break-anywhere { overflow-wrap: anywhere; }

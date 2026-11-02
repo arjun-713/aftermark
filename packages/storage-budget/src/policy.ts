@@ -1,4 +1,4 @@
-export const storageCategories = ['runs', 'events', 'event_keys', 'evidence', 'evaluations', 'reviews', 'review_decisions', 'datasets', 'experiments', 'calibration_reports', 'archives', 'archive_objects', 'cleanup_records', 'alert_payloads'] as const;
+export const storageCategories = ['runs', 'events', 'event_keys', 'evidence', 'evaluations', 'evaluation_attempts', 'reviews', 'review_decisions', 'datasets', 'experiments', 'calibration_reports', 'archives', 'archive_objects', 'cleanup_records', 'alert_payloads'] as const;
 export type StorageCategory = typeof storageCategories[number];
 export type StoragePlan = 'trial' | 'starter' | 'team';
 export type StorageLimits = Record<StoragePlan, number>;

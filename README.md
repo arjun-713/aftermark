@@ -18,10 +18,21 @@ Open http://localhost:3000. Seed credentials are development-only: `alex@example
 
 ```sh
 npm run typecheck
+npm test
+npm run test:python
 npm run test:integration
 npm run test:regression # separate disposable local database
 npm run test:commerce # signed billing protocol and membership fixtures
-npm run test:e2e # builds must be current; uses local Chrome by default
+npm run test:identity
+npm run test:alerts
+npm run test:storage
+npm run test:storage-operations
+npm run test:operations
+npm run build:services
+npm run build
+npm run test:e2e # uses local Chrome by default
 ```
 
 See [implementation evidence](docs/IMPLEMENTATION.md), [authentication setup](docs/AUTHENTICATION.md), [billing integration](docs/BILLING.md), and [customer integration examples](examples). Provider credentials belong in ignored environment files or the hosting secret store. Do not use the development database passwords in a deployed environment. Live provider, payment, calibration and deployment gates remain required before general availability.
+
+The Docker/Render setup and recovery procedures are in [operations](docs/OPERATIONS.md) and [recovery](docs/RECOVERY.md). [Release gates](docs/RELEASE.md) distinguish local verification from production readiness; an empty evidence manifest deliberately blocks release. Semantic evaluations default off.

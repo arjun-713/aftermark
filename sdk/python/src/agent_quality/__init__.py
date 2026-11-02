@@ -17,10 +17,22 @@ from datetime import datetime, timezone
 
 _context = contextvars.ContextVar("agent_quality_context", default=None)
 _sensitive = re.compile(r"^(authorization|password|secret|api.?key|access.?token|refresh.?token|email|phone)$", re.I)
+_email_candidates = re.compile(r"[\w.+@-]+")
+
+def _redact_email_candidate(match):
+    token = match.group(0)
+    at = token.rfind("@")
+    if at <= 0:
+        return token
+    domain = token[at + 1:].rstrip(".")
+    dot = domain.rfind(".")
+    if dot > 0 and re.fullmatch(r"[\w.-]+", domain) and re.fullmatch(r"[a-z]{2,63}", domain[dot + 1:], re.I):
+        return "[REDACTED]" + token[at + 1 + len(domain):]
+    return token
 
 def redact(value):
     if isinstance(value, str):
-        value = re.sub(r"[\w.+-]+@[\w.-]+\.[a-z]{2,}", "[REDACTED]", value, flags=re.I)
+        value = _email_candidates.sub(_redact_email_candidate, value)
         value = re.sub(r"Bearer\s+[^\s\"']+", "Bearer [REDACTED]", value, flags=re.I)
         return re.sub(r"\b(?:sk-|aq_)[a-zA-Z0-9_-]{16,}", "[REDACTED]", value)
     if isinstance(value, dict):

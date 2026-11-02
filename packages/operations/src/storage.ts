@@ -10,6 +10,7 @@ export interface PrivateObjectStore {
 }
 export const checksum = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 export const archivePath = (org: string, project: string, id = randomUUID()) => `${org}/${project}/${id}.json`;
+export const configuredPrivateStore = () => process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? new SupabasePrivateStore() : undefined;
 export class SupabasePrivateStore implements PrivateObjectStore {
   private client; private bucket: string;
   constructor() {

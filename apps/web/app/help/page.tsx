@@ -15,6 +15,7 @@ export default function Help() {
             ["ci", "Regression & CI"],
             ["privacy", "Data handling"],
             ["billing", "Billing"],
+            ["alerts", "Alerts"],
           ].map(([id, label]) => (
             <a key={id} href={`#${id}`}>
               {label}
@@ -137,6 +138,31 @@ export default function Help() {
               processing or upstream zero-retention guarantee is implied.
             </p>
             <Link href="/privacy">Read the data handling disclosure →</Link>
+          </section>
+          <section id="alerts">
+            <h2>Receive signed alerts</h2>
+            <p>
+              Owners and admins can add a public HTTPS destination in Settings →
+              Alerts. New fail, review and unknown assessments create durable,
+              bounded deliveries. The notification contains opaque
+              project/evaluation/event IDs, enum statuses and verification
+              counts; it contains no trace text or model context.
+            </p>
+            <p>
+              Verify <code>x-aq-signature</code> as HMAC-SHA256 over{" "}
+              <code>x-aq-timestamp + "." + raw_body</code> with your destination
+              secret. Reject timestamps more than five minutes old, compare
+              signatures in constant time, and durably deduplicate{" "}
+              <code>x-aq-event-id</code> before processing. Retries preserve the
+              event ID and body. A destination can receive the same event more
+              than once.
+            </p>
+            <p>
+              Endpoints use public DNS and port 443 without URL credentials,
+              query parameters or redirects. Five automatic attempts precede a
+              visible dead letter. Investigate delivery health before requesting
+              one of the three allowed replays.
+            </p>
           </section>
           <section id="billing">
             <h2>Manage allowance and access</h2>

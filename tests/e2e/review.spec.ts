@@ -35,7 +35,10 @@ async function seedRun(page: Page) {
   const events = [
     {
       kind: "run.started",
-      payload: { agent: "Browser workflow test", metadata: { sample: true } },
+      payload: {
+        agent: "Browser workflow test",
+        metadata: { sample: true, task: { unexpected: true } },
+      },
     },
     { kind: "outcome.expected", payload: { outcome } },
     {
@@ -123,7 +126,7 @@ async function seedRun(page: Page) {
 }
 test("onboard, inspect linked evidence, and record a review without database access", async ({
   page,
-},testInfo) => {
+}, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/login");
@@ -221,7 +224,10 @@ test("onboard, inspect linked evidence, and record a review without database acc
     report.getByText("failed", { exact: true }).first(),
   ).toBeVisible();
   await expect(report).toContainText("Exit code: 1");
-  await page.screenshot({path:testInfo.outputPath('regression-report.png'),fullPage:true});
+  await page.screenshot({
+    path: testInfo.outputPath("regression-report.png"),
+    fullPage: true,
+  });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > innerWidth,

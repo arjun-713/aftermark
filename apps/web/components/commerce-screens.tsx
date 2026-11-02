@@ -16,6 +16,9 @@ import {
   PageHeader,
 } from "./ui";
 
+import { SettingsNav } from "./settings-nav";
+import { StorageUsage } from "./storage-usage";
+
 type Role = "owner" | "admin" | "member" | "viewer";
 type Plan = "trial" | "starter" | "team";
 type PlanDetails = {
@@ -94,34 +97,6 @@ const date = (value: string) =>
     day: "numeric",
     year: "numeric",
   });
-
-function SettingsTabs({
-  current,
-}: {
-  current: "team" | "billing" | "retention";
-}) {
-  return (
-    <nav className="tabs settings-tabs" aria-label="Workspace settings">
-      {(
-        [
-          ["keys", "API keys"],
-          ["team", "Team"],
-          ["billing", "Usage & billing"],
-          ["retention", "Retention"],
-        ] as const
-      ).map(([id, label]) => (
-        <Link
-          href={`/app/settings/${id}`}
-          className={current === id ? "selected" : ""}
-          aria-current={current === id ? "page" : undefined}
-          key={id}
-        >
-          {label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
 
 function redirectToBilling(url: string) {
   const parsed = new URL(url);
@@ -233,7 +208,7 @@ export function BillingSettings() {
         description="Evaluation allowance and payment management for this workspace."
         action={refresh}
       />
-      <SettingsTabs current="billing" />
+      <SettingsNav current="billing" />
       {billing.isPending ? (
         <Loading rows={5} />
       ) : billing.error ? (
@@ -282,6 +257,7 @@ export function BillingSettings() {
               </p>
             </div>
           </div>
+          <StorageUsage />
           <section className="settings-row" style={{ padding: "24px 0" }}>
             <div>
               <h2>{titleCase(sub.plan)} plan</h2>
@@ -616,7 +592,7 @@ export function TeamSettings() {
           ) : undefined
         }
       />
-      <SettingsTabs current="team" />
+      <SettingsNav current="team" />
       {team.isPending ? (
         <Loading rows={5} />
       ) : team.error ? (
@@ -1066,7 +1042,7 @@ export function RetentionSettings() {
         title="Retention"
         description="Control how long detailed agent traces remain available in this workspace."
       />
-      <SettingsTabs current="retention" />
+      <SettingsNav current="retention" />
       {settings.isPending ? (
         <Loading rows={4} />
       ) : settings.error ? (

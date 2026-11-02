@@ -2,8 +2,20 @@ import "dotenv/config";
 import { Pool } from "pg";
 import { spawn } from "node:child_process";
 const suite = process.argv[2];
-if (!["regression", "commerce", "operations"].includes(suite))
-  throw new Error("Select regression, commerce or operations.");
+if (
+  ![
+    "regression",
+    "commerce",
+    "operations",
+    "identity",
+    "alerts",
+    "storage",
+    "storage_ops",
+  ].includes(suite)
+)
+  throw new Error(
+    "Select regression, commerce, operations, identity, alerts or storage.",
+  );
 if (process.env.NODE_ENV === "production")
   throw new Error(
     "Disposable integration databases are disabled in production.",

@@ -1,3 +1,7 @@
+import {
+  lockStorageBudget,
+  syncRetainedStorage,
+} from "../../../packages/storage-budget/src/index.ts";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { tenant, rows, sql } from "@agent-quality/db";
@@ -5,6 +9,7 @@ import { authorize } from "./auth.ts";
 import { assert } from "./errors.ts";
 import { audit } from "./management.ts";
 import { redact } from "../../../packages/contracts/src/redaction.ts";
+import { loadRunContent } from "./operations.ts";
 export async function reviewRoutes(app: FastifyInstance) {
   app.get("/v1/overview", async (request) => {
     const { projectId } = z
@@ -76,6 +81,7 @@ export async function reviewRoutes(app: FastifyInstance) {
       projectId: body.projectId,
     });
     return tenant(a.organizationId, a.userId, async (tx) => {
+      await lockStorageBudget(tx, a.organizationId);
       const changed = await rows(
         tx,
         sql`update reviews set assigned_to=${body.release ? null : a.userId},version=version+1 where project_id=${body.projectId} and id=${id} and version=${body.expectedVersion} and (assigned_to is null or assigned_to=${a.userId}) returning *`,
@@ -93,6 +99,10 @@ export async function reviewRoutes(app: FastifyInstance) {
         body.release ? "review.released" : "review.claimed",
         id,
       );
+      await syncRetainedStorage(tx, a.organizationId, {
+        projectId: body.projectId,
+        runId: changed[0].run_id,
+      });
       return changed[0];
     });
   });
@@ -113,6 +123,7 @@ export async function reviewRoutes(app: FastifyInstance) {
       projectId: body.projectId,
     });
     return tenant(a.organizationId, a.userId, async (tx) => {
+      await lockStorageBudget(tx, a.organizationId);
       body.annotation = redact(body.annotation);
       const status = body.disagree
         ? "disputed"
@@ -133,6 +144,10 @@ export async function reviewRoutes(app: FastifyInstance) {
         sql`insert into review_decisions(organization_id,project_id,review_id,reviewer_id,version,decision,annotation) values(${a.organizationId},${body.projectId},${id},${a.userId},${changed[0].version},${body.decision},${body.annotation})`,
       );
       await audit(tx, a.organizationId, a.userId, "review.decided", id);
+      await syncRetainedStorage(tx, a.organizationId, {
+        projectId: body.projectId,
+        runId: changed[0].run_id,
+      });
       return changed[0];
     });
   });
@@ -156,10 +171,14 @@ export async function reviewRoutes(app: FastifyInstance) {
       .parse(request.query);
     const a = await authorize(request, { scope: "read", projectId });
     return tenant(a.organizationId, a.userId, async (tx) => {
-      const [record] = await rows<any>(
+      let [record] = await rows<any>(
         tx,
         sql`select e.* from reviews r join evaluations e on e.organization_id=r.organization_id and e.project_id=r.project_id and e.id=r.evaluation_id where r.project_id=${projectId} and r.id=${id}`,
       );
+      if (record && !record.frozen_input)
+        record = (
+          await loadRunContent(tx, projectId, record.run_id)
+        ).evaluations.find((e: any) => e.id === record.id);
       assert(
         record?.frozen_input,
         410,

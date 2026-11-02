@@ -24,8 +24,8 @@ export function validateRoleEnvironment(env, compiledOrigin) {
   for (const [name,allowed] of Object.entries(credentialRoles)) if (env[name] && !allowed.includes(role)) throw new Error(`${name} is not permitted for SERVICE_ROLE=${role}.`);
   if (role !== 'worker' && env.SEMANTIC_EVALUATIONS_ENABLED === 'true') throw new Error('Semantic provider requests can be enabled only on the worker.');
   if (env.NODE_ENV === 'production' && ['api','worker','migrate','restore'].includes(role)) {
-    for (const name of ['DATABASE_URL','SESSION_SECRET','SUPABASE_URL','SUPABASE_ANON_KEY','WEB_ORIGIN']) if (!env[name]) throw new Error(`Configure ${name} for this server role.`);
-    if (env.AUTH_MODE !== 'supabase') throw new Error('Production server roles require Supabase authentication.');
+    for (const name of ['DATABASE_URL']) if (!env[name]) throw new Error(`Configure ${name} for this server role.`);
+    if(role==='api'){for(const name of ['SESSION_SECRET','SUPABASE_URL','SUPABASE_ANON_KEY','WEB_ORIGIN'])if(!env[name])throw new Error(`Configure ${name} for the API role.`);if(env.AUTH_MODE!=='supabase')throw new Error('Production API requires Supabase authentication.');}
   }
   if (role === 'backup') for (const name of ['BACKUP_DATABASE_URL','BACKUP_BUCKET','BACKUP_KMS_KEY_ID','BACKUP_ENCRYPTION_KEY','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','ARCHIVE_BUCKET']) if (!env[name]) throw new Error(`Configure ${name} for the complete database/archive backup.`);
   if (role === 'migrate' && !env.MIGRATION_DATABASE_URL) throw new Error('Configure the migration-only database credential.');

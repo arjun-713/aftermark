@@ -128,7 +128,7 @@ export async function cleanupObjects(org: string, store: PrivateObjectStore, all
       await releaseArchiveObject(tx, org, item.object_path);
       removed++;
     }
-    if (exists) await syncRetainedStorage(tx, org);
+    if (exists && pending.length) await syncRetainedStorage(tx, org);
     return removed;
   });
 }
@@ -155,6 +155,9 @@ export async function expireRun(org: string, project: string, run: string) {
 }
 export async function maintainWorkspace(org: string, store?: PrivateObjectStore) {
   const cfg = operationsConfig(); let archived = 0, expired = 0;
+  // Confirm removal of due, unreferenced objects before metadata reconciliation
+  // or new reservations: an over-limit workspace must be able to recover space.
+  let deleted = store ? await cleanupObjects(org, store) : 0;
   const candidates = await tenant(org, null, tx => rows<any>(tx, sql`select r.project_id,r.id,r.first_ingested_at,o.retention_days from runs r join organizations o on o.id=r.organization_id where (r.first_ingested_at<now()-make_interval(days=>o.retention_days) or (r.content_archived_at is null and r.completed_at is not null and r.last_event_at<now()-interval '24 hours' and r.first_ingested_at<now()-make_interval(days=>${cfg.ARCHIVE_AFTER_DAYS}))) order by r.first_ingested_at limit ${cfg.OPERATIONS_BATCH_SIZE}`));
   for (const run of candidates) {
     if (new Date(run.first_ingested_at).getTime() <= Date.now() - run.retention_days * 86400000) expired += Number(await expireRun(org, run.project_id, run.id));
@@ -168,10 +171,10 @@ export async function maintainWorkspace(org: string, store?: PrivateObjectStore)
   await tenant(org, null, async tx => {
     await lockStorageBudget(tx, org);
     await tx.execute(sql`insert into operations_object_cleanup(organization_id,object_path) select organization_id,object_path from archives where organization_id=${org} and expires_at<=now()`);
-    await tx.execute(sql`delete from archives where organization_id=${org} and expires_at<=now()`);
-    await syncRetainedStorage(tx, org);
+    const expiredPointers=await rows(tx,sql`delete from archives where organization_id=${org} and expires_at<=now() returning id`);
+    if(expiredPointers.length)await syncRetainedStorage(tx, org);
   });
-  const deleted = store ? await cleanupObjects(org, store) : 0;
+  if(store)deleted += await cleanupObjects(org, store);
   await tenant(org, null, async tx => {
     await tx.execute(sql`delete from operations_daily_metrics where day<current_date-90`);
     await tx.execute(sql`delete from usage_ledger u using subscriptions s where s.organization_id=u.organization_id and u.created_at<now()-interval '90 days' and u.created_at<s.period_start and u.state not in ('reserved','ambiguous')`);

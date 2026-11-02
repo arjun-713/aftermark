@@ -17,6 +17,10 @@ import {
   RetentionSettings,
   TeamInvitationAcceptance,
 } from "../../../components/commerce-screens";
+import {
+  AlertSettings,
+  ProcessingHealth,
+} from "../../../components/operations-screens";
 export default function Page() {
   const path = usePathname().split("/").slice(2);
   if (path[0] === "runs" && path[1])
@@ -36,6 +40,8 @@ export default function Page() {
       if (["billing", "usage"].includes(path[1])) return <BillingSettings />;
       if (path[1] === "team") return <TeamSettings />;
       if (path[1] === "retention") return <RetentionSettings />;
+      if (path[1] === "alerts") return <AlertSettings />;
+      if (path[1] === "operations") return <ProcessingHealth />;
       return <Settings />;
     case "team":
       return <TeamInvitationAcceptance />;

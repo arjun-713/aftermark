@@ -1,4 +1,6 @@
 "use client";
+import { SettingsNav } from "./settings-nav";
+import { RunDataActions } from "./operations-screens";
 import { useEffect, useMemo, useState, useDeferredValue } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -678,6 +680,13 @@ export function RunDetail({ runId }: { runId: string }) {
     `/runs/${encodeURIComponent(runId)}/evaluate`,
     () => s.notify("Evaluation queued for the current revision."),
   );
+  const retryQuota = useAction(
+    `/evaluations/${query.data?.evaluations?.[0]?.id ?? "unknown"}/retry`,
+    () =>
+      s.notify(
+        "Frozen evaluation queued. Its previous error remains in attempt history.",
+      ),
+  );
   if (query.isPending) return <Loading rows={8} />;
   if (query.error)
     return <ErrorState error={query.error} retry={() => query.refetch()} />;
@@ -692,7 +701,11 @@ export function RunDetail({ runId }: { runId: string }) {
         All runs
       </Link>
       <PageHeader
-        title={task ?? run.agent}
+        title={
+          typeof task === "string" && task.trim()
+            ? task.slice(0, 200)
+            : run.agent
+        }
         description={
           <>
             <code>{run.id}</code>
@@ -703,16 +716,29 @@ export function RunDetail({ runId }: { runId: string }) {
           </>
         }
         action={
-          <button
-            className="btn secondary"
-            disabled={evaluate.isPending || s.role === "viewer"}
-            onClick={() => evaluate.mutate({})}
-          >
-            <RotateCw size={14} />
-            {evaluate.isPending ? "Queuing…" : "Evaluate now"}
-          </button>
+          latest?.processing === "error" ? (
+            <button
+              className="btn secondary"
+              disabled={retryQuota.isPending || s.role === "viewer"}
+              onClick={() => retryQuota.mutate({})}
+            >
+              {retryQuota.isPending
+                ? "Queuing…"
+                : "Retry after restoring allowance"}
+            </button>
+          ) : (
+            <button
+              className="btn secondary"
+              disabled={evaluate.isPending || s.role === "viewer"}
+              onClick={() => evaluate.mutate({})}
+            >
+              <RotateCw size={14} />
+              {evaluate.isPending ? "Queuing…" : "Evaluate now"}
+            </button>
+          )
         }
       />
+      <RunDataActions runId={runId} />
       <div className="run-summary">
         <div>
           <span>Quality</span>
@@ -1766,22 +1792,8 @@ export function Settings() {
         }
         action={section === "keys" ? <KeyCreator /> : undefined}
       />
-      <div className="tabs settings-tabs">
-        {[
-          ["keys", "API keys"],
-          ["team", "Team"],
-          ["usage", "Usage & billing"],
-          ["retention", "Retention"],
-        ].map(([id, label]) => (
-          <Link
-            className={section === id ? "selected" : ""}
-            href={`/app/settings/${id}`}
-            key={id}
-          >
-            {label}
-          </Link>
-        ))}
-      </div>
+      <SettingsNav current={section} />
+
       {section === "keys" ? (
         !["owner", "admin"].includes(s.role) ? (
           <Empty title="Admin access required">
