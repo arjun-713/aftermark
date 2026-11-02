@@ -47,9 +47,21 @@ Thirteen local checks passed using real Supabase services, including email confi
 
 The source review corrected Node's custom-CA trust and independent cleanup attempts. A container connection probe with the declared extra CA confirmed an authorized TLSv1.3 connection and restricted runtime role against the hosted session pooler. Hosted SMTP, GitHub sign-in, the public HTTPS origin and public application deployment remain separate configuration/verification work. The organization remains on its existing free plan; no billing upgrade was made. Details and commands are in [Supabase setup](SUPABASE.md).
 
-## Required before general availability
-
 The authentication-provider update passed TypeScript checking, all 173 current unit tests and all 25 common API/database integration tests. Availability requires explicit application activation and a true provider setting from Supabase; missing, malformed, revoked or unavailable settings stay disabled. Google/GitHub live activation is deferred by the owner, so these protocol checks do not claim a completed social login.
+
+## Aftermark interface and local production containers
+
+The brand, logo, palette, components, working screens and public pages were redesigned with Impeccable and design-taste-frontend. Documentation now has persistent desktop contents, a mobile contents overlay, active-section feedback and deep-link focus. The final hero puts purpose, claim, expected state and independent observation in one section. Sign in/Create account modes remain visible, and primary acquisition links open signup directly. Unavailable social providers are hidden; their activation is deferred by the owner. GSAP motion respects reduced-motion preferences and leaves content visible.
+
+The nine baseline browser workflows passed across desktop, tablet and phone. Three additional public/auth checks passed against the hosted Auth configuration after the user-directed hero/signup correction. The final frontend inspector reported zero failures; remaining warnings and their dispositions are recorded in `.impeccable/verification.md`. An independent reviewer approved the application/documentation surfaces and then all 15 current public/auth captures at 1440×900, 834×1000 and 390×844. These are interface approvals, not live payment or provider-authorization certification.
+
+The running image is `aftermark:release`, built from application commit `50daba3692a270cdf86cd3c626255afaf2376eb4`, with manifest digest `sha256:d95390e6ecf63f400ac2d20892a55eeba491eb34b60fbf86ab66158456ee2447`. Web, API and worker run as UID/GID 10001 with `unless-stopped` restart policy. Only the API/worker receive backend credentials; migration credentials are excluded. The loopback bindings are web 3001, API 4100 and worker health 4101. All services reported healthy.
+
+An actual browser run through the final production web-to-API proxy signed in with a disposable confirmed Supabase identity, established its browser session, created a workspace/project, and rendered the authenticated overview with no horizontal overflow or browser errors. Its synthetic records were removed; no external confirmation email was sent. HTTP checks returned 200 for the public routes and API readiness, and the authentication config returned `emailSignup:true` with both social providers false. Local email-confirmation/PKCE and hosted Auth/Storage checks are recorded above; external SMTP delivery remains unverified.
+
+This workspace's role-separated runtime files are ignored under `.local/aftermark`. Inspect the running services with `docker compose -f .local/aftermark/compose.yml ps`; restart them with the same command and `up -d`. Temporary worktree/candidate services were stopped. The requested background containers remain running. No Render application deployment or paid-plan upgrade was performed.
+
+## Required before general availability
 
 - Live Supabase email/GitHub authentication and GitHub/HubSpot sandbox verification, including reauthorization and unavailable permissions.
 - Dodo merchant approval, configured products and the full sandbox/paid lifecycle.

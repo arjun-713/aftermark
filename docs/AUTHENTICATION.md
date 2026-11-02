@@ -2,7 +2,7 @@
 
 The reproducible local stack and configured Singapore project are described in [Supabase setup](SUPABASE.md). `npm run supabase:verify` exercises actual local email confirmation/PKCE, JWKS and sessions; `npm run supabase:verify:hosted` checks real hosted Auth, tenant isolation and Storage without sending mail.
 
-Local development uses the two seeded accounts in `.env.example` mode. Production refuses local authentication and the development signing secret. Set `AUTH_MODE=supabase`, a private `SESSION_SECRET`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and an HTTPS `WEB_ORIGIN`. Keep service-role and database migration credentials outside web/API runtime roles.
+Local development uses the two seeded accounts in `.env.example` mode. Production refuses local authentication and the development signing secret. Set `AUTH_MODE=supabase`, a private `SESSION_SECRET`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and an HTTPS `WEB_ORIGIN` for a public deployment. Migration credentials belong only to migration tools. The Supabase service-role key stays in authorized API/worker storage operations and recovery tools, never the frontend or browser. The workspace's loopback-only container deployment uses localhost; browser session behavior was checked separately there.
 
 In Supabase Auth, allow the exact redirect `https://YOUR_HOST/api/v1/auth/callback`. Enable email/password authentication and configure the confirmation email transport; Resend can supply Supabase's SMTP transport. Sign-up uses a PKCE exchange with a ten-minute signed, HTTP-only browser cookie. Email confirmation must be opened in the originating browser. If the pending cookie expires, sign in after confirming your email.
 
