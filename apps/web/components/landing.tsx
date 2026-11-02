@@ -9,7 +9,6 @@ import {
   GitBranch,
   Github,
   FileCheck2,
-  CornerDownRight,
   Minus,
 } from "lucide-react";
 import { Badge } from "./ui";
@@ -58,8 +57,11 @@ export function MarketingNav() {
         <Link href="/help">Documentation</Link>
         <Link href="/pricing">Pricing</Link>
       </div>
-      <Link className="btn primary nav-action" href="/login">
-        Open workspace <ArrowUpRight size={15} />
+      <Link className="nav-sign-in" href="/login">
+        Sign in
+      </Link>
+      <Link className="btn primary nav-action" href="/login?mode=signup">
+        Create account <ArrowUpRight size={15} />
       </Link>
       <details className="marketing-menu">
         <summary>
@@ -70,7 +72,10 @@ export function MarketingNav() {
           <Link href="/help">Documentation</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/login">
-            Open workspace <ArrowUpRight size={15} />
+            Sign in <ArrowUpRight size={15} />
+          </Link>
+          <Link href="/login?mode=signup">
+            Create account <ArrowUpRight size={15} />
           </Link>
         </div>
       </details>
@@ -264,54 +269,38 @@ export function Landing() {
       <div id="top" />
       <MarketingNav />
       <main>
-        <section className="landing-hero">
-          <h1>
-            <span className="hero-line">
-              <span>Agent outcomes.</span>
-            </span>
-            <span className="hero-line">
-              <span>On record.</span>
-            </span>
-          </h1>
-          <div className="hero-context">
-            <p>
-              Know what your agent actually changed. Verify the outcome, review
-              the evidence, and carry the lesson into your next release.
-            </p>
-            <Link className="btn primary" href="/login">
-              Open your workspace <ArrowUpRight size={17} />
-            </Link>
-            <Link className="hero-guide" href="/help">
-              Start with the integration guide <ArrowRight size={15} />
-            </Link>
-          </div>
-          <div className="hero-end">
-            <span>For teams shipping SaaS workflow agents.</span>
-            <a href="#evidence">
-              Follow the evidence <CornerDownRight size={16} />
-            </a>
-          </div>
-        </section>
-
-        <section className="evidence-showcase" id="evidence">
-          <div className="evidence-intro" data-reveal>
-            <h2>
-              Claims meet
-              <br />
-              evidence.
-            </h2>
-            <p>
-              A tool can return success while the expected result stays
-              unverified. Keep the agent’s account beside the state your systems
-              recorded.
-            </p>
+        <section className="landing-hero product-hero" id="evidence">
+          <div className="hero-copy">
+            <h1>
+              <span className="hero-line">
+                <span>Verify agent</span>
+              </span>
+              <span className="hero-line">
+                <span>outcomes.</span>
+              </span>
+            </h1>
+            <div className="hero-context">
+              <p>
+                Aftermark checks your agent’s claims against independent system
+                evidence. Review uncertain outcomes and turn real findings into
+                regression tests.
+              </p>
+              <div className="hero-account-actions">
+                <Link className="btn primary" href="/login?mode=signup">
+                  Create your workspace <ArrowUpRight size={17} />
+                </Link>
+                <Link className="hero-sign-in" href="/login">
+                  Sign in <ArrowRight size={15} />
+                </Link>
+              </div>
+            </div>
           </div>
           <div className="evidence-window" data-ui>
             <div className="evidence-toolbar">
               <span>
                 <BrandMark /> Outcome record
               </span>
-              <span className="example-label">Interactive example</span>
+              <span className="example-label">Example</span>
               <Badge value={outcome} />
             </div>
             <div className="evidence-run-header">
@@ -395,10 +384,14 @@ export function Landing() {
               <span>Illustrative receipt · no live provider query</span>
             </div>
           </div>
-          <p className="showcase-caption" data-reveal>
-            Change the observation. The claim stays the same. The evidence
-            changes the conclusion.
-          </p>
+          <div className="hero-end">
+            <span>
+              For SaaS workflow agents. Your agent runs in your infrastructure.
+            </span>
+            <Link href="/help#outcomes">
+              How verification works <ArrowUpRight size={15} />
+            </Link>
+          </div>
         </section>
 
         <section className="case-story">

@@ -50,7 +50,7 @@ export function MarketingMotion({
             y: -12,
             ease: "none",
             scrollTrigger: {
-              trigger: ".evidence-showcase",
+              trigger: ".product-hero",
               start: "top bottom",
               end: "bottom top",
               scrub: true,

@@ -8,12 +8,15 @@ test("public product explains independent evidence and plan allowances", async (
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Agent outcomes. On record." }),
+    page.getByRole("heading", { name: "Verify agent outcomes." }),
   ).toBeVisible();
   const observation = page.getByRole("combobox", {
     name: "Independent observation",
     exact: true,
   });
+  await expect(page.locator(".product-hero")).toContainText("Aftermark checks your agent’s claims against independent system evidence.");
+  await expect(page.locator(".product-hero blockquote")).toBeVisible();
+  await expect(page.locator(".product-hero").getByText("Expected state", { exact: true })).toBeVisible();
   await expect(page.locator(".observation-answer")).toContainText(
     "Completion remains unknown",
   );
@@ -83,6 +86,20 @@ test("public product explains independent evidence and plan allowances", async (
       () => document.documentElement.scrollWidth > innerWidth,
     ),
   ).toBe(false);
+  const configuration = await (await page.request.get("/api/v1/auth/config")).json();
+  await page.goto("/login?mode=signup");
+  await expect(page.getByRole("tab", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Create account", exact: true })).toHaveAttribute("aria-selected", "true");
+  if (configuration.emailSignup) {
+    await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create account", exact: true })).toBeEnabled();
+  } else {
+    await expect(page.getByText("Account creation is unavailable here.", { exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("link", { name: "Continue with Google", exact: true })).toHaveCount(configuration.google ? 1 : 0);
+  await expect(page.getByRole("link", { name: "Continue with GitHub", exact: true })).toHaveCount(configuration.github ? 1 : 0);
+  await page.getByRole("tab", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
