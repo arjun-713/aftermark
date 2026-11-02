@@ -1,34 +1,29 @@
 import Link from "next/link";
 import { MarketingNav, MarketingFooter } from "../../components/landing";
+import { DocsContents } from "../../components/docs-contents";
 export default function Help() {
   return (
-    <div className="marketing">
+    <div className="marketing docs-site" id="top">
       <MarketingNav />
       <main className="documentation">
-        <aside>
-          <h2>Documentation</h2>
-          {[
-            ["start", "Get started"],
-            ["outcomes", "Expected outcomes"],
-            ["verifiers", "Verification"],
-            ["reviews", "Human review"],
-            ["ci", "Regression & CI"],
-            ["privacy", "Data handling"],
-            ["billing", "Billing"],
-            ["alerts", "Alerts"],
-          ].map(([id, label]) => (
-            <a key={id} href={`#${id}`}>
-              {label}
-            </a>
-          ))}
-        </aside>
+        <DocsContents />
         <article>
-          <h1>
-            Evidence from first run
-            <br />
-            to next release.
-          </h1>
-          <section id="start">
+          <div className="docs-intro">
+            <h1>
+              Build a record.
+              <br />
+              Ship with evidence.
+            </h1>
+            <p>
+              Instrument a workflow, define the result, and keep independent
+              evidence with every agent run.
+            </p>
+            <div className="docs-intro-links">
+              <a href="#start">Get started ↓</a>
+              <a href="#ci">Connect your CI →</a>
+            </div>
+          </div>
+          <section id="start" tabIndex={-1}>
             <h2>Instrument a workflow</h2>
             <p>
               Create a workspace and project, then create an ingestion key. Keep
@@ -50,7 +45,7 @@ export default function Help() {
               supported attributes and framework examples.
             </p>
           </section>
-          <section id="outcomes">
+          <section id="outcomes" tabIndex={-1}>
             <h2>Define the result you need</h2>
             <p>
               An expected outcome names the operation, resource, required
@@ -66,7 +61,7 @@ export default function Help() {
               verified completion.
             </p>
           </section>
-          <section id="verifiers">
+          <section id="verifiers" tabIndex={-1}>
             <h2>Connect independent evidence</h2>
             <p>
               GitHub uses a read-only App for Issues and repository metadata.
@@ -89,7 +84,7 @@ export default function Help() {
               historical causality.
             </p>
           </section>
-          <section id="reviews">
+          <section id="reviews" tabIndex={-1}>
             <h2>Make a human decision</h2>
             <p>
               Open the review inbox, claim a finding, inspect its frozen claim
@@ -99,13 +94,13 @@ export default function Help() {
               assessment.
             </p>
             <p>
-              Policies save immutable versions. Preview reuses frozen
+              Policies save immutable versions. Testing reuses frozen
               observations; activation applies to later evaluation requests.
               Semantic detectors need calibration against human labels before
               they can block a release.
             </p>
           </section>
-          <section id="ci">
+          <section id="ci" tabIndex={-1}>
             <h2>Turn the review into a regression</h2>
             <p>
               Publish a resolved case as an immutable agent regression dataset.
@@ -123,7 +118,7 @@ export default function Help() {
               outcomes block by default.
             </p>
           </section>
-          <section id="privacy">
+          <section id="privacy" tabIndex={-1}>
             <h2>Know the evidence limits</h2>
             <p>
               Detailed trace and evidence retention defaults to 30 days. Curated
@@ -139,7 +134,7 @@ export default function Help() {
             </p>
             <Link href="/privacy">Read the data handling disclosure →</Link>
           </section>
-          <section id="alerts">
+          <section id="alerts" tabIndex={-1}>
             <h2>Receive signed alerts</h2>
             <p>
               Owners and admins can add a public HTTPS destination in Settings →
@@ -164,7 +159,7 @@ export default function Help() {
               one of the three allowed replays.
             </p>
           </section>
-          <section id="billing">
+          <section id="billing" tabIndex={-1}>
             <h2>Manage allowance and access</h2>
             <p>
               Owners manage billing, cancellation and workspace deletion. Admins
@@ -179,7 +174,7 @@ export default function Help() {
               requests; ambiguous requests retain their reservation until
               reconciled. Hard limits keep remaining allowance explicit.
             </p>
-            <Link href="/pricing">See proposed launch plans →</Link>
+            <Link href="/pricing">Compare plans →</Link>
           </section>
         </article>
       </main>

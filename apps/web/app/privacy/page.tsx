@@ -1,14 +1,14 @@
 import { MarketingNav, MarketingFooter } from "../../components/landing";
 export default function Privacy() {
   return (
-    <div className="marketing">
+    <div className="marketing" id="top">
       <MarketingNav />
       <main className="privacy-page">
         <h1>Data handling, plainly.</h1>
         <p>
-          This preview describes the implementation and intended production
-          configuration. A production release requires measured operational
-          gates and the applicable provider agreements.
+          Understand what Aftermark records, how access is controlled, and where
+          your evidence goes. Your workspace’s configuration determines the
+          retention and connections that apply.
         </p>
         <section>
           <h2>What is recorded</h2>
@@ -87,10 +87,10 @@ export default function Privacy() {
         <section>
           <h2>Contact and requests</h2>
           <p>
-            The production operator must publish a support and privacy contact
-            before launch. Workspace owners can export or delete data through
-            the application once production storage is configured. Local preview
-            data and sample receipts are development fixtures.
+            Workspace owners manage exports, retention and deletion from the
+            application. Contact your workspace owner for access or data
+            requests. Example records and sample receipts are labeled wherever
+            they appear.
           </p>
         </section>
       </main>

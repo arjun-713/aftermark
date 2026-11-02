@@ -1219,6 +1219,17 @@ export function Policies() {
         <div className="policy-layout">
           <aside className="version-list">
             <h2>Policy versions</h2>
+            <label className="mobile-policy-version">Policy version
+              <select value={selected} onChange={(event) => {
+                const version = query.data.find((p: any) => p.id === event.target.value);
+                if (!version) return;
+                setSelected(version.id);
+                setDraft(pretty(version.definition));
+                setError("");
+              }}>
+                {query.data.map((p: any) => <option value={p.id} key={p.id}>Version {p.version}{p.active ? " · Active" : ""} · {p.definition.name}</option>)}
+              </select>
+            </label>
             {query.data.map((p: any) => (
               <button
                 className={selected === p.id ? "selected" : ""}
@@ -1306,8 +1317,8 @@ export function Policies() {
               </button>
               <div className="joined-input">
                 <input
-                  aria-label="Run ID for policy preview"
-                  placeholder="Run ID for preview"
+                  aria-label="Run ID for policy test"
+                  placeholder="Run ID to test"
                   value={runId}
                   onChange={(e) => setRunId(e.target.value)}
                 />
@@ -1319,12 +1330,12 @@ export function Policies() {
                   onClick={() => previewAction.mutate({ runId })}
                 >
                   <Play size={13} />
-                  Preview
+                  Test policy
                 </button>
               </div>
             </div>
             <p className="muted small">
-              Preview reuses frozen observations and makes no provider requests.
+              A policy test reuses frozen observations and makes no provider requests.
             </p>
           </section>
         </div>
@@ -1332,7 +1343,7 @@ export function Policies() {
       <Modal
         open={!!preview}
         onOpenChange={(open) => !open && setPreview(undefined)}
-        title="Policy preview"
+        title="Policy test"
         description="Deterministic replay of frozen evidence. Semantic checks may remain unknown."
       >
         <pre className="report-preview">{pretty(preview?.assessment)}</pre>

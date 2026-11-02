@@ -5,17 +5,21 @@ import {
 } from "../../components/landing";
 export default function Pricing() {
   return (
-    <div className="marketing">
+    <div className="marketing" id="top">
       <MarketingNav />
       <main className="pricing-page">
-        <h1>Plans for real workloads.</h1>
+        <h1>
+          Plans for
+          <br />
+          your workflow.
+        </h1>
         <p>
-          Proposed launch prices in USD. Choose an allowance for your team;
-          quotas remain separate from payment state and trace storage.
+          Choose an allowance that fits your workflows. Keep evaluation usage,
+          trace storage, and team access explicit as you grow.
         </p>
         <PricingSelector />
         <section className="pricing-explanation">
-          <h2>What a standard evaluation covers</h2>
+          <h2>One run. A clear allowance.</h2>
           <p>
             One frozen run revision under one policy, with up to 12 checks and a
             bounded semantic request budget. Essential evidence is never
@@ -28,8 +32,9 @@ export default function Pricing() {
             changes and cancellation after a subscription is configured.
           </p>
           <p>
-            Private preview: merchant approval and complete sandbox lifecycle
-            validation are required before paid launch.
+            Checkout availability and your current entitlement are shown in your
+            workspace. A checkout return never changes access on its own;
+            billing follows verified payment-provider state.
           </p>
         </section>
       </main>

@@ -1,29 +1,33 @@
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 
-test("public preview explains evidence and proposed plans", async ({
+test("public product explains independent evidence and plan allowances", async ({
   page,
 }, info) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Did the agent finish?" }),
+    page.getByRole("heading", { name: "Agent outcomes. On record." }),
   ).toBeVisible();
-  const observation = page.getByLabel("Independent sample observation");
-  await expect(page.locator(".demo-result")).toContainText(
+  const observation = page.getByRole("combobox", {
+    name: "Independent observation",
+    exact: true,
+  });
+  await expect(page.locator(".observation-answer")).toContainText(
     "Completion remains unknown",
   );
   await observation.selectOption("open");
-  await expect(page.locator(".demo-result")).toContainText(
+  await expect(page.locator(".observation-answer")).toContainText(
     "Expected state observed",
   );
-  await expect(page.locator(".landing-report pre")).toContainText("exit  0");
+  await expect(page.locator(".ci-fragment pre")).toContainText("exit  0");
   await observation.selectOption("closed");
-  await expect(page.locator(".demo-result")).toContainText(
+  await expect(page.locator(".observation-answer")).toContainText(
     "Observed state contradicts",
   );
-  await expect(page.locator(".landing-report pre")).toContainText("exit  1");
+  await expect(page.locator(".ci-fragment pre")).toContainText("exit  1");
+  await expect(page.getByText("Preview", { exact: true })).toHaveCount(0);
   await page.screenshot({
     path: info.outputPath("landing.png"),
     fullPage: true,
@@ -34,9 +38,14 @@ test("public preview explains evidence and proposed plans", async ({
     ),
   ).toBe(false);
   await page.goto("/pricing");
-  await page.getByRole("button", { name: /Team/ }).click();
-  await expect(page.locator(".plan-price")).toContainText("$99");
-  await expect(page.locator(".plan-detail")).toContainText("50,000");
+  const phone = (page.viewportSize()?.width ?? 1440) <= 600;
+  const plans = page.locator(
+    phone ? ".pricing-mobile-plans" : ".pricing-table",
+  );
+  await expect(plans).toBeVisible();
+  await expect(plans).toContainText("$99");
+  await expect(plans).toContainText("50,000");
+  await expect(plans.getByRole("link", { name: "Choose Team" })).toBeVisible();
   await page.screenshot({
     path: info.outputPath("pricing.png"),
     fullPage: true,
@@ -45,6 +54,21 @@ test("public preview explains evidence and proposed plans", async ({
   await expect(
     page.getByRole("heading", { name: "Turn the review into a regression" }),
   ).toBeVisible();
+  const contents = page.getByRole("complementary", {
+    name: "Documentation contents",
+  });
+  if ((page.viewportSize()?.width ?? 1440) <= 800)
+    await contents.getByRole("button", { name: /Contents/ }).click();
+  await contents.getByRole("link", { name: "Billing & access" }).click();
+  await expect(page).toHaveURL(/#billing$/);
+  await expect(
+    page.getByRole("heading", { name: "Manage allowance and access" }),
+  ).toBeInViewport();
+  if ((page.viewportSize()?.width ?? 1440) <= 800)
+    await contents.getByRole("button", { name: /Contents/ }).click();
+  await expect(
+    contents.getByRole("link", { name: "Billing & access" }),
+  ).toHaveAttribute("aria-current", "location");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > innerWidth,

@@ -318,7 +318,7 @@ export function Datasets() {
         </Empty>
       ) : (
         <div className="table-frame">
-          <table className="data-table">
+          <table className="data-table dataset-table">
             <thead>
               <tr>
                 <th>Dataset / version</th>
@@ -336,8 +336,8 @@ export function Datasets() {
                       <code>{value.hash.slice(0, 16)}</code>
                     </div>
                   </td>
-                  <td style={{ textAlign: "right" }}>{value.case_count}</td>
-                  <td>{when(value.created_at)}</td>
+                  <td data-label="Cases" style={{ textAlign: "right" }}>{value.case_count}</td>
+                  <td data-label="Published">{when(value.created_at)}</td>
                   <td>
                     <button
                       className="btn secondary small"
@@ -915,7 +915,7 @@ export function Experiments() {
         </Empty>
       ) : (
         <div className="table-frame">
-          <table className="data-table">
+          <table className="data-table experiment-table">
             <thead>
               <tr>
                 <th>Experiment</th>
@@ -933,10 +933,10 @@ export function Experiments() {
                       <code>{value.id}</code>
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Dataset version">
                     {value.dataset_name} · v{value.dataset_version}
                   </td>
-                  <td>{when(value.created_at)}</td>
+                  <td data-label="Created">{when(value.created_at)}</td>
                   <td>
                     <button
                       className="btn secondary small"

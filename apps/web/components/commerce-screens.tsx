@@ -1211,7 +1211,7 @@ export function TeamInvitationAcceptance() {
     <>
       <PageHeader
         title="Join a workspace"
-        description="Accept your Agent Quality team invitation."
+        description="Accept your Aftermark team invitation."
       />
       {token === undefined || !s.user ? (
         <Loading rows={3} />

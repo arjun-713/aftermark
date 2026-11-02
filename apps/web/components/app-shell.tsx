@@ -20,12 +20,12 @@ import {
   ArrowUpRight,
   Menu,
   LogOut,
-  ScanEye,
   X,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { api } from "../lib/api";
 import { ErrorState, Loading, Empty } from "./ui";
+import { Brand, BrandMark } from "./brand";
 type Scope = {
   workspaceId: string;
   projectId: string;
@@ -113,15 +113,17 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const project = projects.data?.find((p) => p.id === projectId);
   const navigation = (
     <>
-      <Link className="wordmark" href="/app">
-        <ScanEye size={25} strokeWidth={1.5} />
-        <span>Agent Quality</span>
-      </Link>
+      <Brand href="/app" />
       <div className="nav-group-label">Workspace</div>
       <nav aria-label="Primary navigation">
         {items.map(([name, href, Icon]) => (
           <Link
             className={`nav-item ${path === href || (href !== "/app" && path.startsWith(href)) ? "active" : ""}`}
+            aria-current={
+              path === href || (href !== "/app" && path.startsWith(href))
+                ? "page"
+                : undefined
+            }
             href={href}
             key={name}
           >
@@ -178,7 +180,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
   if (me.error)
     return (
       <main className="auth">
-        <h1>Agent Quality</h1>
+        <Brand />
+        <h1>Workspace unavailable</h1>
         <ErrorState error={me.error} retry={() => me.refetch()} />
       </main>
     );
@@ -225,6 +228,13 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 </Dialog.Content>
               </Dialog.Portal>
             </Dialog.Root>
+            <Link
+              className="mobile-brand"
+              href="/app"
+              aria-label="Aftermark overview"
+            >
+              <BrandMark />
+            </Link>
             <div className="scope-select">
               <select
                 aria-label="Workspace"
