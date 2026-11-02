@@ -1,4 +1,4 @@
-# Agent Quality
+# Aftermark
 
 Outcome verification for SaaS workflow agents. TypeScript monorepo: Next.js UI, Fastify API, PostgreSQL/Drizzle data layer, durable workers, evaluation engine, integrations, and customer SDKs.
 
@@ -15,6 +15,8 @@ npm run dev # web, API and evaluation worker
 ```
 
 Open http://localhost:3000. Seed credentials are development-only: `alex@example.test` or `sam@example.test`, password `local-password-123`. They belong to separate workspaces. Production refuses local authentication. API docs: http://localhost:4100/docs.
+
+For the complete local Supabase Auth, PostgreSQL, private Storage and email inbox, use `npm run supabase:start` followed by `npm run dev:supabase`. This writes a separate ignored configuration and keeps the existing Compose database intact. Run `npm run supabase:verify` to exercise real authentication, tenant isolation, private downloads and email confirmation. See [Supabase setup](docs/SUPABASE.md) for local and hosted configuration. Existing `@agent-quality/*` package names, SDK imports and API identifiers remain compatible.
 
 ```sh
 npm run typecheck

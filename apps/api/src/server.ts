@@ -52,7 +52,7 @@ export async function buildServer() {
   await app.register(rateLimit, { max: 600, timeWindow: "1 minute" });
   await app.register(swagger, {
     openapi: {
-      info: { title: "Agent Quality API", version: "1.0.0" },
+      info: { title: "Aftermark API", version: "1.0.0" },
       components: {
         securitySchemes: { apiKey: { type: "http", scheme: "bearer" } },
       },
@@ -63,7 +63,7 @@ export async function buildServer() {
     reply
       .type("text/html")
       .send(
-        '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Agent Quality API</title><style>body{font:16px/1.6 system-ui;max-width:960px;margin:40px auto;padding:20px}pre{white-space:pre-wrap;background:#f6f7f8;padding:20px}a{color:#08717d}</style><h1>Agent Quality API · v1</h1><p>Authenticate with a scoped Bearer API key. A 202 event response means durable acceptance, not completed evaluation.</p><p><a href="/openapi.json">Download OpenAPI contract</a></p><pre id="contract">Loading contract…</pre><script>fetch("/openapi.json").then(r=>r.json()).then(x=>document.getElementById("contract").textContent=JSON.stringify(x,null,2))</script></html>',
+        '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Aftermark API</title><style>body{font:16px/1.6 system-ui;max-width:960px;margin:40px auto;padding:20px}pre{white-space:pre-wrap;background:#f6f7f8;padding:20px}a{color:#08717d}</style><h1>Aftermark API · v1</h1><p>Authenticate with a scoped Bearer API key. A 202 event response means durable acceptance, not completed evaluation.</p><p><a href="/openapi.json">Download OpenAPI contract</a></p><pre id="contract">Loading contract…</pre><script>fetch("/openapi.json").then(r=>r.json()).then(x=>document.getElementById("contract").textContent=JSON.stringify(x,null,2))</script></html>',
       ),
   );
   app.addHook("onRequest", async (request) => {

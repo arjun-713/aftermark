@@ -9,6 +9,11 @@ dist
 **/.env
 **/.env.*
 .local
+supabase/.keys
+supabase/.temp
+.impeccable/mocks
+.impeccable/review
+.taste-skill
 .aws
 **/.aws
 .agents

@@ -39,6 +39,14 @@ A preceding tuning probe measured ingestion p95 425 ms, query p95 174 ms and eva
 
 The exercise exposed and corrected repeated tenant-wide accounting scans, per-row accounting writes, idle polling during a queue burst and a PostgreSQL expression-depth failure during large reconciliation. A separate regression and a full maintenance run cover the reconciliation fix. Storage/usage limits and atomic rollback remain enforced.
 
+## Supabase integration verification
+
+Supabase CLI 2.122.0 initialized a separate local Auth/PostgreSQL/Storage stack and linked the new Aftermark project `smorxhvisnmqliygbdch` in Singapore. All 16 canonical SQL files through `0017_supabase_api_boundary.sql` and the pg-boss schema are applied locally and to the hosted project. The application role has no superuser/BYPASSRLS privilege. The hosted database enforces SSL and uses certificate-verified session-pool connections. A private JSON archive bucket is configured.
+
+Thirteen local checks passed using real Supabase services, including email confirmation and PKCE callback. Twelve checks passed against the hosted project, including actual JWKS/password login, refresh, two independent workspaces, Data API permission denials under anonymous/member/service credentials, private object access and signed downloads. The probes require a PostgreSQL permission denial rather than accepting a malformed API-key rejection. Their synthetic users/workspaces/objects are removed. No external email or production agent/provider side effects were sent.
+
+The source review corrected Node's custom-CA trust and independent cleanup attempts. A container connection probe with the declared extra CA confirmed an authorized TLSv1.3 connection and restricted runtime role against the hosted session pooler. Hosted SMTP, GitHub sign-in, the public HTTPS origin and public application deployment remain separate configuration/verification work. The organization remains on its existing free plan; no billing upgrade was made. Details and commands are in [Supabase setup](SUPABASE.md).
+
 ## Required before general availability
 
 - Live Supabase email/GitHub authentication and GitHub/HubSpot sandbox verification, including reauthorization and unavailable permissions.
