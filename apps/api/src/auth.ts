@@ -12,6 +12,7 @@ import { tenant, rows, sql } from "@agent-quality/db";
 import { config } from "../../../packages/db/src/config.ts";
 import type { Role } from "@agent-quality/contracts";
 import { assert, ApiError } from "./errors.ts";
+import { createProviderResolver } from "./auth-providers.ts";
 
 export const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -258,49 +259,57 @@ export async function authorize(
   };
 }
 export async function authRoutes(app: FastifyInstance) {
+  const providers = createProviderResolver({
+    enabled: config.AUTH_MODE === "supabase" && supabaseConfigured,
+    url: process.env.SUPABASE_URL,
+    publicKey: process.env.SUPABASE_ANON_KEY,
+    github: process.env.SUPABASE_GITHUB_ENABLED === "true",
+    google: process.env.SUPABASE_GOOGLE_ENABLED === "true",
+  });
   app.get("/v1/auth/config", async () => ({
     mode: config.AUTH_MODE,
     emailSignup: config.AUTH_MODE === "supabase" && supabaseConfigured,
-    github:
-      config.AUTH_MODE === "supabase" &&
-      supabaseConfigured &&
-      process.env.SUPABASE_GITHUB_ENABLED === "true",
+    ...(await providers()),
   }));
-  app.get(
-    "/v1/auth/github",
-    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
-    async (request, reply) => {
-      assert(
-        config.AUTH_MODE === "supabase" &&
-          supabaseConfigured &&
-          process.env.SUPABASE_GITHUB_ENABLED === "true",
-        503,
-        "auth_not_configured",
-        "GitHub sign-in is not configured.",
-      );
-      const q = z
-        .object({ next: z.string().max(2000).optional() })
-        .parse(request.query);
-      const storage: Record<string, string> = {};
-      const client = authClient(storage)!;
-      const { data, error } = await client.auth.signInWithOAuth({
-        provider: "github",
-        options: {
-          redirectTo: `${config.WEB_ORIGIN}/api/v1/auth/callback`,
-          skipBrowserRedirect: true,
-          scopes: "read:user user:email",
-        },
-      });
-      assert(
-        !error && data.url,
-        503,
-        "auth_unavailable",
-        "GitHub sign-in could not start.",
-      );
-      await savePkce(reply, storage, q.next);
-      return reply.redirect(data.url);
-    },
-  );
+  for (const provider of ["github", "google"] as const)
+    app.get(
+      `/v1/auth/${provider}`,
+      { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+      async (request, reply) => {
+        const available = await providers();
+        const name = provider === "github" ? "GitHub" : "Google";
+        assert(
+          available[provider],
+          503,
+          "auth_not_configured",
+          `${name} sign-in is not configured.`,
+        );
+        const q = z
+          .object({ next: z.string().max(2000).optional() })
+          .parse(request.query);
+        const storage: Record<string, string> = {};
+        const client = authClient(storage)!;
+        const { data, error } = await client.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: `${config.WEB_ORIGIN}/api/v1/auth/callback`,
+            skipBrowserRedirect: true,
+            scopes:
+              provider === "github"
+                ? "read:user user:email"
+                : "openid email profile",
+          },
+        });
+        assert(
+          !error && data.url,
+          503,
+          "auth_unavailable",
+          `${name} sign-in could not start.`,
+        );
+        await savePkce(reply, storage, q.next);
+        return reply.redirect(data.url);
+      },
+    );
   app.get("/v1/auth/callback", async (request, reply) => {
     try {
       assert(

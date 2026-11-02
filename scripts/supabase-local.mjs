@@ -136,6 +136,7 @@ async function prepare() {
     SUPABASE_ANON_KEY: status.PUBLISHABLE_KEY || status.ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: status.SECRET_KEY || status.SERVICE_ROLE_KEY,
     SUPABASE_GITHUB_ENABLED: "false",
+    SUPABASE_GOOGLE_ENABLED: "false",
     SEMANTIC_EVALUATIONS_ENABLED: "false",
     ARCHIVE_BUCKET: "agent-quality-private",
     LOCAL_ENCRYPTION_KEY:

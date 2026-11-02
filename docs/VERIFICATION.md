@@ -49,6 +49,8 @@ The source review corrected Node's custom-CA trust and independent cleanup attem
 
 ## Required before general availability
 
+The authentication-provider update passed TypeScript checking, all 173 current unit tests and all 25 common API/database integration tests. Availability requires explicit application activation and a true provider setting from Supabase; missing, malformed, revoked or unavailable settings stay disabled. Google/GitHub live activation is deferred by the owner, so these protocol checks do not claim a completed social login.
+
 - Live Supabase email/GitHub authentication and GitHub/HubSpot sandbox verification, including reauthorization and unavailable permissions.
 - Dodo merchant approval, configured products and the full sandbox/paid lifecycle.
 - At least 400 genuinely human-labelled calibration cases with a sealed 25% holdout; semantic blocking remains disabled until its detector passes calibration.
